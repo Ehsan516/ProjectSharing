@@ -48,7 +48,7 @@ export function WorksReportForm({
           name="setup"
           maxLength={200}
           defaultValue={existing?.setup ?? ""}
-          placeholder="Your setup, e.g. Fire TV Stick 4K Max, FireOS 8.1"
+          placeholder="Your setup (device, version, OS…)"
           className="input"
         />
         <SubmitButton className="btn-ghost shrink-0">{existing ? "Update" : "Submit"}</SubmitButton>

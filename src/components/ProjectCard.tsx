@@ -4,11 +4,12 @@ import { displayName, timeAgo } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
 import { TagChip } from "@/components/TagChip";
 import { VoteButton } from "@/components/VoteButton";
+import { YouTubeEmbed } from "@/components/YouTubeEmbed";
 
 export function ProjectCard({ project, voted }: { project: ProjectSummary; voted: boolean }) {
   return (
     <article className="card flex gap-4 p-4 transition hover:border-accent/50">
-      {project.cover_url && (
+      {project.cover_url && !project.youtube_id && (
         <Link href={`/p/${project.id}`} className="hidden shrink-0 sm:block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -34,6 +35,12 @@ export function ProjectCard({ project, voted }: { project: ProjectSummary; voted
           </div>
         )}
 
+        {project.youtube_id && (
+          <div className="mt-3">
+            <YouTubeEmbed videoId={project.youtube_id} title={project.title} />
+          </div>
+        )}
+
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
           {project.author && (
             <Link href={`/u/${project.author.username}`} className="flex items-center gap-1.5 hover:text-text">
@@ -45,6 +52,7 @@ export function ProjectCard({ project, voted }: { project: ProjectSummary; voted
           <Link href={`/p/${project.id}#comments`} className="hover:text-text">
             {project.comment_count} {project.comment_count === 1 ? "comment" : "comments"}
           </Link>
+          {project.file_name && <span title={project.file_name}>⬇ .zip</span>}
           {project.works_yes + project.works_no > 0 && (
             <span className="text-good">
               ✓ worked for {project.works_yes}/{project.works_yes + project.works_no}

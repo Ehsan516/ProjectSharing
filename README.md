@@ -3,16 +3,16 @@
 A social platform for sharing things people build: mods, tools, scripts, device tweaks and hacks.
 Search for anything ("pokemon", "fire tv", "tesla"), follow tags to get a personal feed, and post your own projects.
 
-Each project can include a **recipe**: the prompt or spec behind it, so someone else can hand it to their AI and rebuild it
-for their own device or game version. Other users then add **"works for me"** reports saying whether it ran on their setup.
+Projects can include a downloadable **.zip**, a **YouTube video** (autoplays muted while it's centered on screen, tap to
+unmute) and **"works for me"** reports from other users saying whether it ran on their setup.
 
 Stack: Next.js 15 (App Router, server actions) + Supabase (Postgres, auth, storage) + Tailwind CSS 4.
 
 ## Setup
 
 1. **Create a Supabase project** at https://supabase.com.
-2. **Run the schema:** in the Supabase dashboard open *SQL Editor → New query*, paste
-   [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql), and run it.
+2. **Run the schema:** in the Supabase dashboard open *SQL Editor → New query*, then paste and run each file in
+   [`supabase/migrations/`](supabase/migrations/) in order (`0001_…`, then `0002_…`).
 3. **Configure auth redirects:** *Authentication → URL Configuration*
    - Site URL: `http://localhost:3000` (your real domain later)
    - Redirect URLs: add `http://localhost:3000/auth/callback` (and `https://yourdomain.com/auth/callback` later)
@@ -35,8 +35,8 @@ Stack: Next.js 15 (App Router, server actions) + Supabase (Postgres, auth, stora
 | Feed: *For you* (followed tags), *New*, *Top* | `src/app/page.tsx` |
 | Full-text + tag search (accent-insensitive) | `src/app/search`, `search_projects()` SQL function |
 | Tag pages with follow | `src/app/t/[tag]` |
-| Project page: links, recipe with copy, works-for-me reports, comments, report/delete | `src/app/p/[id]` |
-| Post a project with cover image upload | `src/app/new` |
+| Project page: zip download, YouTube video, links, works-for-me reports, comments, report/delete | `src/app/p/[id]` |
+| Post a project with zip + cover upload (direct to Supabase Storage, with progress) | `src/app/new` |
 | Profiles + settings | `src/app/u/[username]`, `src/app/settings` |
 | Magic-link auth | `src/app/login`, `src/app/auth/callback` |
 
@@ -46,7 +46,7 @@ security. Vote, comment and works counters are kept in sync by triggers, and cli
 ## Moderation
 
 - Users can report projects. Reports land in the `reports` table; review them in the Supabase Table Editor.
-- Projects link out to where code lives. The site doesn't host downloads, which keeps malware and copyright exposure low.
+- Zips are user uploads and are **not scanned**. Consider adding malware scanning (e.g. VirusTotal API) before launch.
 - Before launch, publish a DMCA / takedown contact, and terms that ban ROMs, pirated software and malware.
 
 ## Renaming

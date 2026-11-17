@@ -7,15 +7,23 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { postLoginPath } from "@/lib/auth";
 import type { ActionState } from "@/lib/types";
-import { cleanUrl, parseTags, safeRedirectPath, slugifyTag } from "@/lib/utils";
+import { cleanUrl, parseTags, parseYouTubeId, safeRedirectPath, slugifyTag } from "@/lib/utils";
 
-const MAX_COVER_BYTES = 5 * 1024 * 1024;
-const COVER_TYPES: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "image/gif": "gif",
-};
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const FILE_PATH = new RegExp(`^(${UUID})/(${UUID}[.]zip)$`);
+const COVER_PATH = new RegExp(`^(${UUID})/(${UUID}[.](?:png|jpg|webp|gif))$`);
+
+/** Confirms an uploaded object exists in the user's folder and returns its real size. */
+async function findUpload(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  bucket: "files" | "covers",
+  path: string,
+): Promise<number | null> {
+  const [folder, name] = path.split("/");
+  const { data } = await supabase.storage.from(bucket).list(folder, { search: name, limit: 1 });
+  const hit = data?.find((o) => o.name === name);
+  return hit ? Number(hit.metadata?.size ?? 0) : null;
+}
 
 function text(formData: FormData, key: string, max: number): string {
   return String(formData.get(key) ?? "").trim().slice(0, max);
@@ -85,27 +93,43 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
   const tags = parseTags(String(formData.get("tags") ?? ""));
   const linkRaw = text(formData, "link_url", 2000);
   const sourceRaw = text(formData, "source_url", 2000);
+  const youtubeRaw = text(formData, "youtube_url", 2000);
   const link_url = cleanUrl(linkRaw);
   const source_url = cleanUrl(sourceRaw);
+  const youtube_id = parseYouTubeId(youtubeRaw);
 
   if (title.length < 3) return { error: "Give your project a title (at least 3 characters)." };
   if (!summary) return { error: "Add a one-line summary so people know what it does." };
-  if (tags.length === 0) return { error: "Add at least one tag, e.g. pokemon, fire-tv, tesla." };
+  if (tags.length === 0) return { error: "Add at least one tag so people can find it." };
   if (linkRaw && !link_url) return { error: "Project link must be a valid http(s) URL." };
   if (sourceRaw && !source_url) return { error: "Source link must be a valid http(s) URL." };
+  if (youtubeRaw && !youtube_id) return { error: "That doesn't look like a YouTube video link." };
 
+  // Files were uploaded directly from the browser; verify they're the user's and really exist.
+  const file_path = text(formData, "file_path", 200) || null;
+  let file_name: string | null = null;
+  let file_size: number | null = null;
+  if (file_path) {
+    const m = file_path.match(FILE_PATH);
+    if (!m || m[1] !== user.id) return { error: "Invalid file upload. Try attaching it again." };
+    file_size = await findUpload(supabase, "files", file_path);
+    if (file_size === null) return { error: "The zip upload didn't finish. Try attaching it again." };
+    file_name =
+      text(formData, "file_name", 200)
+        .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
+        .replace(/^\.+/, "") || "download.zip";
+    if (!file_name.toLowerCase().endsWith(".zip")) file_name += ".zip";
+  }
+
+  const cover_path = text(formData, "cover_path", 200) || null;
   let cover_url: string | null = null;
-  const cover = formData.get("cover");
-  if (cover instanceof File && cover.size > 0) {
-    const ext = COVER_TYPES[cover.type];
-    if (!ext) return { error: "Cover image must be PNG, JPG, WebP or GIF." };
-    if (cover.size > MAX_COVER_BYTES) return { error: "Cover image must be 5 MB or smaller." };
-    const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
-    const { error: uploadError } = await supabase.storage
-      .from("covers")
-      .upload(path, cover, { contentType: cover.type, upsert: false });
-    if (uploadError) return { error: `Image upload failed: ${uploadError.message}` };
-    cover_url = supabase.storage.from("covers").getPublicUrl(path).data.publicUrl;
+  if (cover_path) {
+    const m = cover_path.match(COVER_PATH);
+    if (!m || m[1] !== user.id) return { error: "Invalid cover image. Try attaching it again." };
+    if ((await findUpload(supabase, "covers", cover_path)) === null) {
+      return { error: "The cover image upload didn't finish. Try again." };
+    }
+    cover_url = supabase.storage.from("covers").getPublicUrl(cover_path).data.publicUrl;
   }
 
   const { data, error } = await supabase
@@ -117,10 +141,13 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
       tags,
       link_url,
       source_url,
+      youtube_id,
+      file_path,
+      file_name,
+      file_size,
+      cover_path,
       cover_url,
       body: text(formData, "body", 20000) || null,
-      prompt: text(formData, "prompt", 20000) || null,
-      made_with: text(formData, "made_with", 80) || null,
       works_on: text(formData, "works_on", 200) || null,
     })
     .select("id")
@@ -136,17 +163,15 @@ export async function deleteProject(projectId: string) {
   const { supabase, user } = await requireUser(`/p/${projectId}`);
   const { data: project } = await supabase
     .from("projects")
-    .select("cover_url")
+    .select("cover_path,file_path")
     .eq("id", projectId)
     .eq("author_id", user.id)
     .single();
 
   await supabase.from("projects").delete().eq("id", projectId).eq("author_id", user.id);
 
-  const marker = "/object/public/covers/";
-  if (project?.cover_url?.includes(marker)) {
-    await supabase.storage.from("covers").remove([project.cover_url.split(marker)[1]]);
-  }
+  if (project?.cover_path) await supabase.storage.from("covers").remove([project.cover_path]);
+  if (project?.file_path) await supabase.storage.from("files").remove([project.file_path]);
 
   revalidatePath("/", "layout");
   redirect("/");

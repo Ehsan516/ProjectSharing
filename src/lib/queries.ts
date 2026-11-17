@@ -15,7 +15,7 @@ export const PROJECT_AUTHOR_SELECT = "author:profiles!projects_author_id_fkey(us
 export const COMMENT_AUTHOR_SELECT = "author:profiles!comments_author_id_fkey(username,display_name,avatar_url)";
 export const REPORT_AUTHOR_SELECT = "author:profiles!works_reports_user_id_fkey(username,display_name,avatar_url)";
 
-export const SUMMARY_SELECT = `id,title,summary,tags,cover_url,works_on,vote_count,comment_count,works_yes,works_no,created_at,${PROJECT_AUTHOR_SELECT}`;
+export const SUMMARY_SELECT = `id,title,summary,tags,cover_url,works_on,youtube_id,file_name,vote_count,comment_count,works_yes,works_no,created_at,${PROJECT_AUTHOR_SELECT}`;
 
 export type FeedTab = "foryou" | "new" | "top";
 

@@ -48,6 +48,35 @@ export function cleanUrl(raw: FormDataEntryValue | null): string | null {
   }
 }
 
+const YT_ID = /^[A-Za-z0-9_-]{11}$/;
+
+/** Accepts youtube.com/watch?v=, youtu.be/, /shorts/, /embed/, /live/ links (or a bare id). */
+export function parseYouTubeId(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return null;
+  if (YT_ID.test(value)) return value;
+  let url: URL;
+  try {
+    url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.replace(/^(www\.|m\.|music\.)/, "");
+  let id: string | null = null;
+  if (host === "youtu.be") {
+    id = url.pathname.split("/")[1] ?? null;
+  } else if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    id = url.pathname === "/watch" ? url.searchParams.get("v") : (url.pathname.match(/^\/(?:embed|shorts|live|v)\/([^/]+)/)?.[1] ?? null);
+  }
+  return id && YT_ID.test(id) ? id : null;
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export function displayName(author: { username: string; display_name: string | null } | null): string {
   if (!author) return "deleted user";
   return author.display_name || `@${author.username}`;

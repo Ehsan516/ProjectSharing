@@ -11,6 +11,8 @@ export type ProjectSummary = {
   tags: string[];
   cover_url: string | null;
   works_on: string | null;
+  youtube_id: string | null;
+  file_name: string | null;
   vote_count: number;
   comment_count: number;
   works_yes: number;
@@ -22,10 +24,11 @@ export type ProjectSummary = {
 export type Project = ProjectSummary & {
   author_id: string;
   body: string | null;
-  prompt: string | null;
-  made_with: string | null;
   link_url: string | null;
   source_url: string | null;
+  file_path: string | null;
+  file_size: number | null;
+  cover_path: string | null;
   updated_at: string;
 };
 

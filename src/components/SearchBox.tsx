@@ -13,7 +13,7 @@ export function SearchBox() {
         key={current}
         name="q"
         defaultValue={current}
-        placeholder="Search projects — pokemon, fire tv, tesla…"
+        placeholder="Search projects…"
         className="input rounded-full bg-surface-2"
         aria-label="Search projects"
       />

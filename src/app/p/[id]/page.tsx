@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { COMMENT_AUTHOR_SELECT, PROJECT_AUTHOR_SELECT, REPORT_AUTHOR_SELECT } from "@/lib/queries";
 import type { Comment, Project, WorksReport } from "@/lib/types";
-import { displayName, timeAgo } from "@/lib/utils";
+import { displayName, formatBytes, timeAgo } from "@/lib/utils";
 import {
   addComment,
   deleteComment,
@@ -13,9 +13,9 @@ import {
   submitWorksReport,
 } from "@/lib/actions";
 import { Avatar } from "@/components/Avatar";
-import { CopyButton } from "@/components/CopyButton";
 import { TagChip } from "@/components/TagChip";
 import { VoteButton } from "@/components/VoteButton";
+import { YouTubeEmbed } from "@/components/YouTubeEmbed";
 import { CommentForm, ConfirmButton, ReportForm, WorksReportForm } from "@/components/ProjectForms";
 
 type Params = Promise<{ id: string }>;
@@ -67,6 +67,10 @@ export default async function ProjectPage({ params }: { params: Params }) {
   const reports = (reportRows ?? []) as unknown as WorksReport[];
   const myReport = user ? (reports.find((r) => r.user_id === user.id) ?? null) : null;
   const totalReports = project.works_yes + project.works_no;
+  const downloadUrl = project.file_path
+    ? supabase.storage.from("files").getPublicUrl(project.file_path, { download: project.file_name ?? true }).data
+        .publicUrl
+    : null;
 
   return (
     <article className="mx-auto flex max-w-3xl flex-col gap-6">
@@ -88,17 +92,31 @@ export default async function ProjectPage({ params }: { params: Params }) {
         <VoteButton projectId={project.id} voted={!!vote} count={project.vote_count} large />
       </header>
 
-      {project.cover_url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={project.cover_url} alt="" className="max-h-[420px] w-full rounded-xl border border-border object-cover" />
+      {project.youtube_id ? (
+        <YouTubeEmbed videoId={project.youtube_id} title={project.title} />
+      ) : (
+        project.cover_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={project.cover_url} alt="" className="max-h-[420px] w-full rounded-xl border border-border object-cover" />
+        )
       )}
 
       {/* Links + facts */}
       <div className="card flex flex-col gap-3 p-4">
-        {(project.link_url || project.source_url) && (
+        {(project.link_url || project.source_url || downloadUrl) && (
           <div className="flex flex-wrap gap-2">
+            {downloadUrl && (
+              <a href={downloadUrl} className="btn-primary" rel="nofollow">
+                ⬇ Download .zip{project.file_size ? ` (${formatBytes(project.file_size)})` : ""}
+              </a>
+            )}
             {project.link_url && (
-              <a href={project.link_url} target="_blank" rel="noopener noreferrer nofollow ugc" className="btn-primary">
+              <a
+                href={project.link_url}
+                target="_blank"
+                rel="noopener noreferrer nofollow ugc"
+                className={downloadUrl ? "btn-ghost" : "btn-primary"}
+              >
                 Open project ↗
               </a>
             )}
@@ -114,12 +132,6 @@ export default async function ProjectPage({ params }: { params: Params }) {
             <>
               <dt className="text-muted">Works on</dt>
               <dd>{project.works_on}</dd>
-            </>
-          )}
-          {project.made_with && (
-            <>
-              <dt className="text-muted">Made with</dt>
-              <dd>{project.made_with}</dd>
             </>
           )}
           <dt className="text-muted">Reports</dt>
@@ -142,7 +154,8 @@ export default async function ProjectPage({ params }: { params: Params }) {
           </div>
         )}
         <p className="text-xs text-muted">
-          Links go to third-party sites. Review code before running it on your devices.
+          Files and links are shared by users and aren&apos;t scanned. Only run things you trust, and check the
+          source first.
         </p>
       </div>
 
@@ -150,21 +163,6 @@ export default async function ProjectPage({ params }: { params: Params }) {
         <section>
           <h2 className="mb-2 font-semibold">About</h2>
           <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{project.body}</div>
-        </section>
-      )}
-
-      {project.prompt && (
-        <section className="card overflow-hidden">
-          <div className="flex items-center justify-between gap-2 border-b border-border bg-surface-2 px-4 py-2">
-            <div>
-              <h2 className="text-sm font-semibold">Recipe</h2>
-              <p className="text-xs text-muted">The prompt/spec behind this. Give it to your AI to rebuild it for your setup.</p>
-            </div>
-            <CopyButton text={project.prompt} />
-          </div>
-          <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-xs leading-relaxed">
-            {project.prompt}
-          </pre>
         </section>
       )}
 
