@@ -57,7 +57,7 @@ let activePlayer: YTPlayer | null = null;
  *  - autoplays MUTED while it's in the middle of the screen, pauses when scrolled away,
  *  - unmutes when clicked.
  */
-export function YouTubeEmbed({ videoId, title }: { videoId: string; title: string }) {
+export function YouTubeEmbed({ videoId, title, flush = false }: { videoId: string; title: string; flush?: boolean }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YTPlayer | null>(null);
@@ -150,7 +150,10 @@ export function YouTubeEmbed({ videoId, title }: { videoId: string; title: strin
   }
 
   return (
-    <div ref={wrapperRef} className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
+    <div
+      ref={wrapperRef}
+      className={`relative aspect-video w-full overflow-hidden bg-black ${flush ? "" : "rounded-2xl"}`}
+    >
       {!ready && (
         // eslint-disable-next-line @next/next/no-img-element
         <img

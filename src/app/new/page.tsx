@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
-import { NewProjectForm } from "./NewProjectForm";
+import { createProject } from "@/lib/actions";
+import { ProjectForm } from "@/components/ProjectForm";
 
 export const metadata: Metadata = { title: "Post a project" };
 
@@ -16,7 +17,7 @@ export default async function NewProjectPage() {
         Share something you built: a mod, tool, script, tweak or hack. Don&apos;t upload
         ROMs, paid software or anything you don&apos;t have the rights to.
       </p>
-      <NewProjectForm />
+      <ProjectForm mode="create" action={createProject} />
     </div>
   );
 }

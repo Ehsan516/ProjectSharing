@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { createProject } from "@/lib/actions";
+import Link from "next/link";
+import type { ActionState } from "@/lib/types";
 import { getBrowserClient } from "@/lib/supabase/client";
 import { uploadWithProgress, uploadZip } from "@/lib/upload";
-import { parseTags, parseYouTubeId } from "@/lib/utils";
+import { blockEnterSubmit, parseTags, parseYouTubeId } from "@/lib/utils";
 import { FormMessage } from "@/components/SubmitButton";
 import { YouTubeEmbed } from "@/components/YouTubeEmbed";
 import { ZipField } from "@/components/ZipField";
@@ -17,11 +18,39 @@ const COVER_TYPES: Record<string, string> = {
   "image/gif": "gif",
 };
 
-export function NewProjectForm() {
-  const [state, formAction, saving] = useActionState(createProject, undefined);
+export type ProjectFormValues = {
+  title: string;
+  summary: string;
+  tags: string[];
+  link_url: string | null;
+  source_url: string | null;
+  youtube_id: string | null;
+  works_on: string | null;
+  body: string | null;
+  cover_url: string | null;
+};
+
+/**
+ * Post form. "create" also takes the first zip + version;
+ * "edit" changes the post itself (files and versions are handled by releases).
+ */
+export function ProjectForm({
+  mode,
+  action,
+  initial,
+  cancelHref,
+}: {
+  mode: "create" | "edit";
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+  initial?: ProjectFormValues;
+  cancelHref?: string;
+}) {
+  const editing = mode === "edit";
+  const [state, formAction, saving] = useActionState(action, undefined);
   const [, startTransition] = useTransition();
-  const [tagsRaw, setTagsRaw] = useState("");
-  const [youtubeRaw, setYoutubeRaw] = useState("");
+  const [tagsRaw, setTagsRaw] = useState(initial?.tags.join(", ") ?? "");
+  const [youtubeRaw, setYoutubeRaw] = useState(initial?.youtube_id ? `https://youtu.be/${initial.youtube_id}` : "");
+  const [removeCover, setRemoveCover] = useState(false);
   const [cover, setCover] = useState<File | null>(null);
   const [zip, setZip] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -79,19 +108,36 @@ export function NewProjectForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+    <form onSubmit={onSubmit} onKeyDown={blockEnterSubmit} className="flex flex-col gap-5">
       <div>
         <label htmlFor="title" className="label">
           Title *
         </label>
-        <input id="title" name="title" required minLength={3} maxLength={120} className="input" placeholder="Name of your project" />
+        <input
+          id="title"
+          name="title"
+          required
+          minLength={3}
+          maxLength={120}
+          defaultValue={initial?.title}
+          className="input"
+          placeholder="Name of your project"
+        />
       </div>
 
       <div>
         <label htmlFor="summary" className="label">
           One-line summary *
         </label>
-        <input id="summary" name="summary" required maxLength={280} className="input" placeholder="What does it do, in one sentence?" />
+        <input
+          id="summary"
+          name="summary"
+          required
+          maxLength={280}
+          defaultValue={initial?.summary}
+          className="input"
+          placeholder="What does it do, in one sentence?"
+        />
       </div>
 
       <div>
@@ -107,7 +153,9 @@ export function NewProjectForm() {
           className="input"
           placeholder="e.g. game, device, app, platform"
         />
-        <p className="hint">Comma-separated, up to 8. Name the game, device or app it&apos;s for so people can find it.</p>
+        <p className="hint">
+          Comma-separated, up to 8. Name the game, device or app it&apos;s for so people can find it.
+        </p>
         {tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {tags.map((t) => (
@@ -119,35 +167,51 @@ export function NewProjectForm() {
         )}
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-[1fr_160px]">
-        <ZipField
-          onChange={(file, error) => {
-            setZip(file);
-            setLocalError(error);
-          }}
-        />
-        <div>
-          <label htmlFor="version" className="label">
-            Version
-          </label>
-          <input id="version" name="version" maxLength={40} className="input" placeholder="1.0" />
-          <p className="hint">You can publish updates later.</p>
+      {!editing && (
+        <div className="grid gap-5 sm:grid-cols-[1fr_160px]">
+          <ZipField
+            onChange={(file, error) => {
+              setZip(file);
+              setLocalError(error);
+            }}
+          />
+          <div>
+            <label htmlFor="version" className="label">
+              Version
+            </label>
+            <input id="version" name="version" maxLength={40} className="input" placeholder="1.0" />
+            <p className="hint">You can publish updates later.</p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="link_url" className="label">
             Project link
           </label>
-          <input id="link_url" name="link_url" type="url" className="input" placeholder="https://…" />
+          <input
+            id="link_url"
+            name="link_url"
+            type="url"
+            defaultValue={initial?.link_url ?? ""}
+            className="input"
+            placeholder="https://…"
+          />
           <p className="hint">Website, demo or store page.</p>
         </div>
         <div>
           <label htmlFor="source_url" className="label">
             Source code
           </label>
-          <input id="source_url" name="source_url" type="url" className="input" placeholder="https://…" />
+          <input
+            id="source_url"
+            name="source_url"
+            type="url"
+            defaultValue={initial?.source_url ?? ""}
+            className="input"
+            placeholder="https://…"
+          />
           <p className="hint">Recommended so people can check what it does.</p>
         </div>
       </div>
@@ -164,7 +228,9 @@ export function NewProjectForm() {
           className="input"
           placeholder="https://youtube.com/watch?v=…"
         />
-        {youtubeRaw.trim() && !youtubeId && <p className="hint text-bad">That doesn&apos;t look like a YouTube video link.</p>}
+        {youtubeRaw.trim() && !youtubeId && (
+          <p className="hint text-bad">That doesn&apos;t look like a YouTube video link.</p>
+        )}
         {youtubeId && (
           <div className="mt-2 max-w-sm">
             <YouTubeEmbed videoId={youtubeId} title="Video preview" />
@@ -176,7 +242,14 @@ export function NewProjectForm() {
         <label htmlFor="works_on" className="label">
           Works on
         </label>
-        <input id="works_on" name="works_on" maxLength={200} className="input" placeholder="Device, version, OS…" />
+        <input
+          id="works_on"
+          name="works_on"
+          maxLength={200}
+          defaultValue={initial?.works_on ?? ""}
+          className="input"
+          placeholder="Device, version, OS…"
+        />
         <p className="hint">Whatever you tested it on.</p>
       </div>
 
@@ -189,6 +262,7 @@ export function NewProjectForm() {
           name="body"
           rows={6}
           maxLength={20000}
+          defaultValue={initial?.body ?? ""}
           className="input"
           placeholder="What it does, how to install or use it, known issues…"
         />
@@ -206,18 +280,57 @@ export function NewProjectForm() {
           onChange={(e) => onCoverChange(e.target.files?.[0])}
           className="block w-full text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:font-medium file:text-text"
         />
-        <p className="hint">PNG, JPG, WebP or GIF, up to 5 MB. Shown when there&apos;s no video.</p>
+        <p className="hint">
+          PNG, JPG, WebP or GIF, up to 5 MB. Shown when there&apos;s no video.
+          {editing && initial?.cover_url && " Choosing a new image replaces the current one."}
+        </p>
+        {editing && initial?.cover_url && !cover && (
+          <div className="mt-2 flex items-end gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={initial.cover_url}
+              alt="Current cover"
+              className={`max-h-32 rounded-lg object-cover ${removeCover ? "opacity-30" : ""}`}
+            />
+            <label className="flex items-center gap-1.5 text-sm">
+              <input
+                type="checkbox"
+                name="remove_cover"
+                checked={removeCover}
+                onChange={(e) => setRemoveCover(e.target.checked)}
+              />
+              Remove cover
+            </label>
+          </div>
+        )}
         {cover && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={URL.createObjectURL(cover)} alt="" className="mt-2 max-h-48 rounded-lg border border-border object-cover" />
+          <img
+            src={URL.createObjectURL(cover)}
+            alt=""
+            className="mt-2 max-h-48 rounded-lg border border-border object-cover"
+          />
         )}
       </div>
 
       <FormMessage state={localError ? { error: localError } : state} />
       <div className="flex items-center justify-end gap-3">
         {progress && <span className="text-sm text-muted">{progress}</span>}
+        {cancelHref && (
+          <Link href={cancelHref} className="btn-ghost">
+            Cancel
+          </Link>
+        )}
         <button type="submit" disabled={busy} className="btn-primary">
-          {saving ? "Posting…" : progress ? "Uploading…" : "Post project"}
+          {saving
+            ? editing
+              ? "Saving…"
+              : "Posting…"
+            : progress
+              ? "Uploading…"
+              : editing
+                ? "Save changes"
+                : "Post project"}
         </button>
       </div>
     </form>

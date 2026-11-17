@@ -4,27 +4,30 @@ import { ProjectCard } from "@/components/ProjectCard";
 
 export function ProjectList({
   projects,
-  votedIds,
+  reactions,
   hasMore,
   nextHref,
   empty,
+  wide = false,
 }: {
   projects: ProjectSummary[];
-  votedIds: Set<string>;
+  reactions: Map<string, 1 | -1>;
   hasMore: boolean;
   nextHref: string;
   empty: React.ReactNode;
+  /** Three columns on large screens (pages without a sidebar) */
+  wide?: boolean;
 }) {
   if (projects.length === 0) {
-    return <div className="card p-8 text-center text-sm text-muted">{empty}</div>;
+    return <div className="panel p-10 text-center text-sm text-muted">{empty}</div>;
   }
   return (
-    <div className="flex flex-col gap-3">
+    <div className={`grid gap-5 sm:grid-cols-2 ${wide ? "lg:grid-cols-3" : ""}`}>
       {projects.map((p) => (
-        <ProjectCard key={p.id} project={p} voted={votedIds.has(p.id)} />
+        <ProjectCard key={p.id} project={p} reaction={reactions.get(p.id) ?? 0} />
       ))}
       {hasMore && (
-        <Link href={nextHref} className="btn-ghost self-center" scroll={false}>
+        <Link href={nextHref} className="btn-ghost col-span-full justify-self-center" scroll={false}>
           Load more
         </Link>
       )}

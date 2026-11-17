@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
-import { getFeed, getVotedIds, parsePage, type FeedTab } from "@/lib/queries";
+import { getFeed, getReactions, parsePage, type FeedTab } from "@/lib/queries";
 import type { Profile } from "@/lib/types";
 import { timeAgo } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
@@ -29,11 +29,11 @@ export default async function ProfilePage({ params, searchParams }: { params: Pa
   if (!profile) notFound();
 
   const { projects, hasMore } = await getFeed(supabase, { tab, page, authorId: profile.id });
-  const votedIds = await getVotedIds(supabase, user?.id, projects.map((p) => p.id));
+  const reactions = await getReactions(supabase, user?.id, projects.map((p) => p.id));
   const isMe = user?.id === profile.id;
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <div className="card mb-6 flex items-start gap-4 p-5">
         <Avatar author={profile} size={64} />
         <div className="min-w-0 flex-1">
@@ -51,8 +51,9 @@ export default async function ProfilePage({ params, searchParams }: { params: Pa
       </div>
       <FeedTabs active={tab} basePath={`/u/${profile.username}`} tabs={["new", "top"]} />
       <ProjectList
+        wide
         projects={projects}
-        votedIds={votedIds}
+        reactions={reactions}
         hasMore={hasMore}
         nextHref={`/u/${profile.username}?tab=${tab}&page=${page + 1}`}
         empty={isMe ? <Link href="/new" className="text-accent hover:underline">Post your first project</Link> : "No projects yet."}

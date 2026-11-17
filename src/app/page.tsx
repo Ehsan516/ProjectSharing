@@ -5,7 +5,7 @@ import {
   getFollowedProjectIds,
   getFollowedTags,
   getPopularTags,
-  getVotedIds,
+  getReactions,
   parsePage,
   type FeedTab,
 } from "@/lib/queries";
@@ -34,15 +34,15 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
     needsFollows ? Promise.resolve({ projects: [], hasMore: false }) : getFeed(supabase, { tab, page, followedTags, followedProjectIds }),
     getPopularTags(supabase, 24),
   ]);
-  const votedIds = await getVotedIds(supabase, user?.id, projects.map((p) => p.id));
+  const reactions = await getReactions(supabase, user?.id, projects.map((p) => p.id));
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+    <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
       <section className="min-w-0">
         <FeedTabs active={tab} basePath="/" />
         <ProjectList
           projects={projects}
-          votedIds={votedIds}
+          reactions={reactions}
           hasMore={hasMore}
           nextHref={`/?tab=${tab}&page=${page + 1}`}
           empty={

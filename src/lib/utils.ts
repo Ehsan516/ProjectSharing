@@ -87,3 +87,12 @@ export function displayName(author: { username: string; display_name: string | n
   if (!author) return "deleted user";
   return author.display_name || `@${author.username}`;
 }
+
+/**
+ * Form onKeyDown handler: stops Enter in single-line inputs from submitting the form,
+ * so long forms only submit when the button is clicked. Textareas still get new lines.
+ */
+export function blockEnterSubmit(e: React.KeyboardEvent<HTMLFormElement>) {
+  const target = e.target as HTMLElement;
+  if (e.key === "Enter" && target instanceof HTMLInputElement && target.type !== "submit") e.preventDefault();
+}

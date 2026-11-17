@@ -19,7 +19,7 @@ export const REPORT_AUTHOR_SELECT = "author:profiles!works_reports_user_id_fkey(
 export const LATEST_RELEASE_SELECT =
   "latest:project_releases!projects_latest_release_id_fkey(id,version,file_name,works_yes,works_no,created_at)";
 
-export const SUMMARY_SELECT = `id,title,summary,tags,cover_url,works_on,youtube_id,vote_count,comment_count,download_count,works_yes,works_no,created_at,activity_at,${PROJECT_AUTHOR_SELECT},${LATEST_RELEASE_SELECT}`;
+export const SUMMARY_SELECT = `id,title,summary,tags,cover_url,works_on,youtube_id,vote_count,like_count,dislike_count,comment_count,download_count,works_yes,works_no,created_at,activity_at,${PROJECT_AUTHOR_SELECT},${LATEST_RELEASE_SELECT}`;
 
 export type FeedTab = "foryou" | "new" | "top";
 
@@ -43,18 +43,19 @@ export async function getFollowedProjectIds(supabase: SupabaseClient, userId: st
   return (data ?? []).map((r) => r.project_id as string);
 }
 
-export async function getVotedIds(
+/** The signed-in user's like (1) / dislike (-1) per project. */
+export async function getReactions(
   supabase: SupabaseClient,
   userId: string | undefined,
   projectIds: string[],
-): Promise<Set<string>> {
-  if (!userId || projectIds.length === 0) return new Set();
+): Promise<Map<string, 1 | -1>> {
+  if (!userId || projectIds.length === 0) return new Map();
   const { data } = await supabase
     .from("votes")
-    .select("project_id")
+    .select("project_id,value")
     .eq("user_id", userId)
     .in("project_id", projectIds);
-  return new Set((data ?? []).map((r) => r.project_id as string));
+  return new Map((data ?? []).map((r) => [r.project_id as string, r.value as 1 | -1]));
 }
 
 export async function getFeed(

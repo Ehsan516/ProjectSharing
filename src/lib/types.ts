@@ -13,6 +13,8 @@ export type ProjectSummary = {
   works_on: string | null;
   youtube_id: string | null;
   vote_count: number;
+  like_count: number;
+  dislike_count: number;
   comment_count: number;
   download_count: number;
   works_yes: number;

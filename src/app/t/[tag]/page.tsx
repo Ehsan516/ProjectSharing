@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
-import { getFeed, getFollowedTags, getVotedIds, parsePage, type FeedTab } from "@/lib/queries";
+import { getFeed, getFollowedTags, getReactions, parsePage, type FeedTab } from "@/lib/queries";
 import { slugifyTag } from "@/lib/utils";
 import { FeedTabs } from "@/components/FeedTabs";
 import { FollowTagButton } from "@/components/FollowTagButton";
@@ -27,10 +27,10 @@ export default async function TagPage({ params, searchParams }: { params: Params
     getFeed(supabase, { tab, page, tag }),
     getFollowedTags(supabase, user?.id),
   ]);
-  const votedIds = await getVotedIds(supabase, user?.id, projects.map((p) => p.id));
+  const reactions = await getReactions(supabase, user?.id, projects.map((p) => p.id));
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <div className="mb-4 flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">#{tag}</h1>
         {user ? (
@@ -43,8 +43,9 @@ export default async function TagPage({ params, searchParams }: { params: Params
       </div>
       <FeedTabs active={tab} basePath={`/t/${tag}`} tabs={["new", "top"]} />
       <ProjectList
+        wide
         projects={projects}
-        votedIds={votedIds}
+        reactions={reactions}
         hasMore={hasMore}
         nextHref={`/t/${tag}?tab=${tab}&page=${page + 1}`}
         empty={

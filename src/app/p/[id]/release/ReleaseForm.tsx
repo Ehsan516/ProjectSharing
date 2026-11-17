@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import type { ActionState } from "@/lib/types";
 import { uploadZip } from "@/lib/upload";
+import { blockEnterSubmit } from "@/lib/utils";
 import { FormMessage } from "@/components/SubmitButton";
 import { ZipField } from "@/components/ZipField";
 
@@ -42,7 +43,7 @@ export function ReleaseForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5">
+    <form onSubmit={onSubmit} onKeyDown={blockEnterSubmit} className="flex flex-col gap-5">
       <div className="grid gap-5 sm:grid-cols-[160px_1fr]">
         <div>
           <label htmlFor="version" className="label">

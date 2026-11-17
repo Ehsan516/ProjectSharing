@@ -21,8 +21,9 @@ import {
 } from "@/lib/actions";
 import { Avatar } from "@/components/Avatar";
 import { FollowProjectButton } from "@/components/FollowProjectButton";
+import { MoreMenu } from "@/components/MoreMenu";
 import { TagChip } from "@/components/TagChip";
-import { VoteButton } from "@/components/VoteButton";
+import { VoteButton, type Reaction } from "@/components/VoteButton";
 import { WorksTally } from "@/components/WorksTally";
 import { YouTubeEmbed } from "@/components/YouTubeEmbed";
 import { CommentForm, ConfirmButton, ReportForm, WorksReportForm } from "@/components/ProjectForms";
@@ -80,7 +81,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
       ? supabase.from("works_reports").select("release_id,worked,setup").eq("project_id", id).eq("user_id", user.id)
       : Promise.resolve({ data: [] }),
     user
-      ? supabase.from("votes").select("project_id").eq("project_id", id).eq("user_id", user.id).maybeSingle()
+      ? supabase.from("votes").select("value").eq("project_id", id).eq("user_id", user.id).maybeSingle()
       : Promise.resolve({ data: null }),
     user
       ? supabase.from("project_follows").select("project_id").eq("project_id", id).eq("user_id", user.id).maybeSingle()
@@ -100,19 +101,12 @@ export default async function ProjectPage({ params }: { params: Params }) {
   const wasUpdated = releases.length > 1;
 
   return (
-    <article className="mx-auto flex max-w-3xl flex-col gap-6">
-      {/* Header */}
-      <header className="flex gap-4">
+    <article className="mx-auto flex max-w-3xl flex-col gap-8">
+      {/* Header: one idea, big and plain */}
+      <header className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold leading-tight">
-            {project.title}
-            {latest && (
-              <span className="ml-2 align-middle rounded-md bg-surface-2 px-2 py-0.5 font-mono text-sm font-medium text-muted">
-                v{latest.version}
-              </span>
-            )}
-          </h1>
-          <p className="mt-1 text-muted">{project.summary}</p>
+          <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{project.title}</h1>
+          <p className="mt-2 text-lg text-muted">{project.summary}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
             {project.author && (
               <Link href={`/u/${project.author.username}`} className="flex items-center gap-1.5 hover:text-text">
@@ -123,21 +117,14 @@ export default async function ProjectPage({ params }: { params: Params }) {
             <span>posted {timeAgo(project.created_at)}</span>
             {wasUpdated && latest && <span className="text-accent">updated {timeAgo(latest.created_at)}</span>}
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {isOwner ? (
-              <Link href={`/p/${project.id}/release`} className="btn-primary">
-                Publish an update
-              </Link>
-            ) : user ? (
-              <FollowProjectButton action={toggleFollowProject.bind(null, project.id)} following={!!follow} />
-            ) : (
-              <Link href={`/login?next=/p/${project.id}`} className="btn-ghost">
-                Follow for updates
-              </Link>
-            )}
-          </div>
         </div>
-        <VoteButton projectId={project.id} voted={!!vote} count={project.vote_count} large />
+        <VoteButton
+          projectId={project.id}
+          reaction={((vote as { value: 1 | -1 } | null)?.value ?? 0) as Reaction}
+          likes={project.like_count}
+          dislikes={project.dislike_count}
+          size="lg"
+        />
       </header>
 
       {project.youtube_id ? (
@@ -145,77 +132,119 @@ export default async function ProjectPage({ params }: { params: Params }) {
       ) : (
         project.cover_url && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={project.cover_url} alt="" className="max-h-[420px] w-full rounded-xl border border-border object-cover" />
+          <img src={project.cover_url} alt="" className="max-h-[440px] w-full rounded-2xl object-cover" />
         )
       )}
 
-      {/* Links + facts */}
-      <div className="card flex flex-col gap-3 p-4">
-        {(project.link_url || project.source_url || latestDownload) && (
-          <div className="flex flex-wrap gap-2">
-            {latest && latestDownload && (
-              <a href={latestDownload} className="btn-primary" rel="nofollow">
-                ⬇ Download v{latest.version}
-                {latest.file_size ? ` (${formatBytes(latest.file_size)})` : ""}
-              </a>
-            )}
-            {project.link_url && (
+      {/* One primary action; everything else is a quiet link */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+          {latest && latestDownload ? (
+            <a href={latestDownload} className="btn-primary px-6 py-2.5 text-base" rel="nofollow">
+              Download v{latest.version}
+              {latest.file_size ? <span className="font-normal opacity-80">· {formatBytes(latest.file_size)}</span> : null}
+            </a>
+          ) : (
+            project.link_url && (
               <a
                 href={project.link_url}
                 target="_blank"
                 rel="noopener noreferrer nofollow ugc"
-                className={latestDownload ? "btn-ghost" : "btn-primary"}
+                className="btn-primary px-6 py-2.5 text-base"
               >
                 Open project ↗
               </a>
-            )}
-            {project.source_url && (
-              <a href={project.source_url} target="_blank" rel="noopener noreferrer nofollow ugc" className="btn-ghost">
-                Source ↗
-              </a>
-            )}
-          </div>
-        )}
-        <dl className="grid gap-2 text-sm sm:grid-cols-[140px_1fr]">
-          {(latest?.works_on || project.works_on) && (
-            <>
-              <dt className="text-muted">Works on</dt>
-              <dd>{latest?.works_on || project.works_on}</dd>
-            </>
+            )
           )}
-          {project.download_count > 0 && (
-            <>
-              <dt className="text-muted">Downloads</dt>
-              <dd>{project.download_count.toLocaleString()}</dd>
-            </>
+          {latestDownload && project.link_url && (
+            <a href={project.link_url} target="_blank" rel="noopener noreferrer nofollow ugc" className="link-action">
+              Open project ↗
+            </a>
           )}
-          <dt className="text-muted">{latest ? `Reports for v${latest.version}` : "Reports"}</dt>
-          <dd>
-            <WorksTally yes={latest ? latest.works_yes : project.works_yes} no={latest ? latest.works_no : project.works_no} />
-            {wasUpdated && project.works_yes + project.works_no > 0 && (
-              <span className="text-muted">
-                {" "}
-                · all versions: {project.works_yes}✓ {project.works_no}✗
-              </span>
-            )}
-          </dd>
-        </dl>
-        {project.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {project.tags.map((tag) => (
-              <TagChip key={tag} tag={tag} />
-            ))}
+          {project.source_url && (
+            <a href={project.source_url} target="_blank" rel="noopener noreferrer nofollow ugc" className="link-action">
+              View source ↗
+            </a>
+          )}
+          {isOwner ? (
+            <>
+              <Link href={`/p/${project.id}/release`} className="link-action">
+                Publish an update ›
+              </Link>
+              <Link href={`/p/${project.id}/edit`} className="link-action">
+                Edit post ›
+              </Link>
+            </>
+          ) : user ? (
+            <FollowProjectButton
+              action={toggleFollowProject.bind(null, project.id)}
+              following={!!follow}
+              variant="link"
+            />
+          ) : (
+            <Link href={`/login?next=/p/${project.id}`} className="link-action">
+              Follow for updates ›
+            </Link>
+          )}
+          <div className="ml-auto">
+            <MoreMenu>
+              {isOwner ? (
+                <ConfirmButton
+                  action={deleteProject.bind(null, project.id)}
+                  confirmText="Delete this project and all its releases?"
+                  className="text-sm text-bad hover:underline"
+                >
+                  Delete project
+                </ConfirmButton>
+              ) : user ? (
+                <ReportForm action={reportProject.bind(null, project.id)} />
+              ) : (
+                <Link href={`/login?next=/p/${project.id}`} className="text-sm text-muted hover:text-text">
+                  Sign in to report this project
+                </Link>
+              )}
+            </MoreMenu>
           </div>
+        </div>
+        {(latestDownload || project.link_url) && (
+          <p className="text-xs text-muted">
+            Shared by users and not scanned. Check the source before running anything.
+          </p>
         )}
-        <p className="text-xs text-muted">
-          Files and links are shared by users and aren&apos;t scanned. Only run things you trust, and check the
-          source first.
-        </p>
       </div>
+
+      {/* At a glance */}
+      <dl className="panel grid grid-cols-2 gap-x-6 gap-y-4 p-5 sm:grid-cols-4">
+        <Stat label="Version" value={latest ? `v${latest.version}` : "—"} mono />
+        <Stat label="Downloads" value={latest?.file_name ? project.download_count.toLocaleString() : "—"} />
+        <div className="col-span-2">
+          <dt className="text-xs text-muted">{latest ? `Works on v${latest.version}?` : "Works for people?"}</dt>
+          <dd className="mt-1 text-sm font-medium">
+            <WorksTally
+              yes={latest ? latest.works_yes : project.works_yes}
+              no={latest ? latest.works_no : project.works_no}
+            />
+          </dd>
+        </div>
+        {(latest?.works_on || project.works_on) && (
+          <div className="col-span-2 sm:col-span-4">
+            <dt className="text-xs text-muted">Tested on</dt>
+            <dd className="mt-1 text-sm">{latest?.works_on || project.works_on}</dd>
+          </div>
+        )}
+      </dl>
+
+      {project.tags.length > 0 && (
+        <div className="-mt-4 flex flex-wrap gap-1.5">
+          {project.tags.map((tag) => (
+            <TagChip key={tag} tag={tag} />
+          ))}
+        </div>
+      )}
 
       {project.body && (
         <section>
-          <h2 className="mb-2 font-semibold">About</h2>
+          <h2 className="mb-2 text-xl font-semibold tracking-tight">About</h2>
           <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{project.body}</div>
         </section>
       )}
@@ -223,12 +252,12 @@ export default async function ProjectPage({ params }: { params: Params }) {
       {/* Releases */}
       {releases.length > 0 && (
         <section id="releases" className="flex flex-col gap-3">
-          <h2 className="font-semibold">Releases</h2>
-          <ol className="flex flex-col gap-3">
+          <h2 className="text-xl font-semibold tracking-tight">Releases</h2>
+          <ol className="panel flex flex-col divide-y divide-[var(--hairline)]">
             {releases.map((r, i) => {
               const url = downloadUrl(r);
               return (
-                <li key={r.id} className="card p-4">
+                <li key={r.id} className="p-4">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="font-mono font-semibold">v{r.version}</span>
                     {i === 0 && (
@@ -267,8 +296,8 @@ export default async function ProjectPage({ params }: { params: Params }) {
       )}
 
       {/* Works-for-me reports */}
-      <section className="card flex flex-col gap-4 p-4">
-        <h2 className="font-semibold">Works for me?</h2>
+      <section className="panel flex flex-col gap-4 p-5">
+        <h2 className="text-xl font-semibold tracking-tight">Works for me?</h2>
         {user ? (
           isOwner ? (
             <p className="text-sm text-muted">Others will report here whether each version worked on their setup.</p>
@@ -307,7 +336,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
 
       {/* Comments */}
       <section id="comments" className="flex flex-col gap-4">
-        <h2 className="font-semibold">
+        <h2 className="text-xl font-semibold tracking-tight">
           {project.comment_count} {project.comment_count === 1 ? "comment" : "comments"}
         </h2>
         {comments.map((c) => (
@@ -345,15 +374,15 @@ export default async function ProjectPage({ params }: { params: Params }) {
         )}
       </section>
 
-      <footer className="flex items-center gap-4 border-t border-border pt-4">
-        {isOwner ? (
-          <ConfirmButton action={deleteProject.bind(null, project.id)} confirmText="Delete this project and all its releases?">
-            Delete project
-          </ConfirmButton>
-        ) : user ? (
-          <ReportForm action={reportProject.bind(null, project.id)} />
-        ) : null}
-      </footer>
     </article>
+  );
+}
+
+function Stat({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className={`mt-1 text-xl font-semibold tracking-tight ${mono ? "font-mono" : ""}`}>{value}</dd>
+    </div>
   );
 }

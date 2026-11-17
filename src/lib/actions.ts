@@ -113,9 +113,19 @@ function readVersion(formData: FormData): string {
   return text(formData, "version", 40).replace(/^v(?=\d)/i, "");
 }
 
-export async function createProject(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { supabase, user } = await requireUser("/new");
+type ProjectFields = {
+  title: string;
+  summary: string;
+  tags: string[];
+  link_url: string | null;
+  source_url: string | null;
+  youtube_id: string | null;
+  works_on: string | null;
+  body: string | null;
+};
 
+/** Validates the post fields shared by create and edit. */
+function readProjectFields(formData: FormData): ProjectFields | { error: string } {
   const title = text(formData, "title", 120);
   const summary = text(formData, "summary", 280);
   const tags = parseTags(String(formData.get("tags") ?? ""));
@@ -125,8 +135,6 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
   const link_url = cleanUrl(linkRaw);
   const source_url = cleanUrl(sourceRaw);
   const youtube_id = parseYouTubeId(youtubeRaw);
-  const works_on = text(formData, "works_on", 200) || null;
-  const versionRaw = readVersion(formData);
 
   if (title.length < 3) return { error: "Give your project a title (at least 3 characters)." };
   if (!summary) return { error: "Add a one-line summary so people know what it does." };
@@ -134,37 +142,51 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
   if (linkRaw && !link_url) return { error: "Project link must be a valid http(s) URL." };
   if (sourceRaw && !source_url) return { error: "Source link must be a valid http(s) URL." };
   if (youtubeRaw && !youtube_id) return { error: "That doesn't look like a YouTube video link." };
+
+  return {
+    title,
+    summary,
+    tags,
+    link_url,
+    source_url,
+    youtube_id,
+    works_on: text(formData, "works_on", 200) || null,
+    body: text(formData, "body", 20000) || null,
+  };
+}
+
+/** Validates a cover image the browser uploaded directly to storage. Returns null if none was uploaded. */
+async function readCover(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  formData: FormData,
+): Promise<{ cover_path: string; cover_url: string } | null | { error: string }> {
+  const cover_path = text(formData, "cover_path", 200) || null;
+  if (!cover_path) return null;
+  const m = cover_path.match(COVER_PATH);
+  if (!m || m[1] !== userId) return { error: "Invalid cover image. Try attaching it again." };
+  if ((await findUpload(supabase, "covers", cover_path)) === null) {
+    return { error: "The cover image upload didn't finish. Try again." };
+  }
+  return { cover_path, cover_url: supabase.storage.from("covers").getPublicUrl(cover_path).data.publicUrl };
+}
+
+export async function createProject(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser("/new");
+
+  const fields = readProjectFields(formData);
+  if ("error" in fields) return fields;
+  const versionRaw = readVersion(formData);
   if (versionRaw && !VERSION.test(versionRaw)) return { error: "Version can use letters, numbers, dots and dashes, e.g. 1.0" };
 
   const zip = await verifyZip(supabase, user.id, formData);
   if ("error" in zip) return zip;
-
-  const cover_path = text(formData, "cover_path", 200) || null;
-  let cover_url: string | null = null;
-  if (cover_path) {
-    const m = cover_path.match(COVER_PATH);
-    if (!m || m[1] !== user.id) return { error: "Invalid cover image. Try attaching it again." };
-    if ((await findUpload(supabase, "covers", cover_path)) === null) {
-      return { error: "The cover image upload didn't finish. Try again." };
-    }
-    cover_url = supabase.storage.from("covers").getPublicUrl(cover_path).data.publicUrl;
-  }
+  const cover = await readCover(supabase, user.id, formData);
+  if (cover && "error" in cover) return cover;
 
   const { data, error } = await supabase
     .from("projects")
-    .insert({
-      author_id: user.id,
-      title,
-      summary,
-      tags,
-      link_url,
-      source_url,
-      youtube_id,
-      cover_path,
-      cover_url,
-      works_on,
-      body: text(formData, "body", 20000) || null,
-    })
+    .insert({ author_id: user.id, ...fields, ...(cover ?? {}) })
     .select("id")
     .single();
   if (error) return { error: error.message };
@@ -175,7 +197,7 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
       project_id: data.id,
       version: versionRaw || "1.0",
       changelog: "Initial release",
-      works_on,
+      works_on: fields.works_on,
       ...zip,
     });
     if (releaseError) {
@@ -186,6 +208,41 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
 
   revalidatePath("/", "layout");
   redirect(`/p/${data.id}`);
+}
+
+export async function updateProject(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser(`/p/${projectId}/edit`);
+
+  const { data: existing } = await supabase
+    .from("projects")
+    .select("cover_path")
+    .eq("id", projectId)
+    .eq("author_id", user.id)
+    .maybeSingle();
+  if (!existing) return { error: "Only the project's author can edit it." };
+
+  const fields = readProjectFields(formData);
+  if ("error" in fields) return fields;
+  const cover = await readCover(supabase, user.id, formData);
+  if (cover && "error" in cover) return cover;
+
+  const removeCover = formData.get("remove_cover") === "on";
+  const coverChange = cover ?? (removeCover ? { cover_path: null, cover_url: null } : {});
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ ...fields, ...coverChange })
+    .eq("id", projectId)
+    .eq("author_id", user.id);
+  if (error) return { error: error.message };
+
+  // Clean up the old cover file once it's been replaced or removed.
+  if ((cover || removeCover) && existing.cover_path) {
+    await supabase.storage.from("covers").remove([existing.cover_path]);
+  }
+
+  revalidatePath("/", "layout");
+  redirect(`/p/${projectId}`);
 }
 
 export async function deleteProject(projectId: string) {
@@ -266,12 +323,19 @@ export async function deleteRelease(projectId: string, releaseId: string) {
 
 // ---------------------------------------------------------------- engagement
 
-export async function toggleVote(projectId: string, currentlyVoted: boolean) {
+/** 1 = like, -1 = dislike, 0 = clear. */
+export async function setReaction(projectId: string, value: 1 | -1 | 0) {
   const { supabase, user } = await requireUser(`/p/${projectId}`);
-  if (currentlyVoted) {
+  if (value === 0) {
     await supabase.from("votes").delete().eq("user_id", user.id).eq("project_id", projectId);
-  } else {
-    await supabase.from("votes").upsert({ user_id: user.id, project_id: projectId }, { ignoreDuplicates: true });
+  } else if (value === 1 || value === -1) {
+    const { data: changed } = await supabase
+      .from("votes")
+      .update({ value })
+      .eq("user_id", user.id)
+      .eq("project_id", projectId)
+      .select("project_id");
+    if (!changed?.length) await supabase.from("votes").insert({ user_id: user.id, project_id: projectId, value });
   }
   revalidatePath("/", "layout");
 }

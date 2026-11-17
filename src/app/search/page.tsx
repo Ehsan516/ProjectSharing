@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getUser } from "@/lib/supabase/server";
-import { getFollowedTags, getVotedIds, parsePage, searchProjects } from "@/lib/queries";
+import { getFollowedTags, getReactions, parsePage, searchProjects } from "@/lib/queries";
 import { slugifyTag } from "@/lib/utils";
 import { ProjectList } from "@/components/ProjectList";
 import { FollowTagButton } from "@/components/FollowTagButton";
@@ -27,11 +27,11 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
     searchProjects(supabase, q, page),
     getFollowedTags(supabase, user?.id),
   ]);
-  const votedIds = await getVotedIds(supabase, user?.id, projects.map((p) => p.id));
+  const reactions = await getReactions(supabase, user?.id, projects.map((p) => p.id));
   const tag = slugifyTag(q);
 
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-lg font-semibold">
           Results for <span className="text-accent">“{q}”</span>
@@ -46,8 +46,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         )}
       </div>
       <ProjectList
+        wide
         projects={projects}
-        votedIds={votedIds}
+        reactions={reactions}
         hasMore={hasMore}
         nextHref={`/search?q=${encodeURIComponent(q)}&page=${page + 1}`}
         empty={
