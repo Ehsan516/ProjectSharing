@@ -49,3 +49,16 @@ export async function looksLikeZip(file: File): Promise<boolean> {
   const bytes = new Uint8Array(await file.slice(0, 4).arrayBuffer());
   return bytes[0] === 0x50 && bytes[1] === 0x4b && (bytes[2] === 0x03 || bytes[2] === 0x05);
 }
+
+export const MAX_ZIP_BYTES = 50 * 1024 * 1024;
+
+/** Uploads a zip into the user's folder; returns the fields the server actions expect. */
+export async function uploadZip(file: File, onProgress?: (fraction: number) => void) {
+  const {
+    data: { user },
+  } = await getBrowserClient().auth.getUser();
+  if (!user) throw new Error("You're signed out. Sign in again and retry.");
+  const path = `${user.id}/${crypto.randomUUID()}.zip`;
+  await uploadWithProgress("files", path, file, "application/zip", onProgress);
+  return { file_path: path, file_name: file.name };
+}

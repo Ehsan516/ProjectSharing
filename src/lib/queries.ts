@@ -15,9 +15,16 @@ export const PROJECT_AUTHOR_SELECT = "author:profiles!projects_author_id_fkey(us
 export const COMMENT_AUTHOR_SELECT = "author:profiles!comments_author_id_fkey(username,display_name,avatar_url)";
 export const REPORT_AUTHOR_SELECT = "author:profiles!works_reports_user_id_fkey(username,display_name,avatar_url)";
 
-export const SUMMARY_SELECT = `id,title,summary,tags,cover_url,works_on,youtube_id,file_name,vote_count,comment_count,works_yes,works_no,created_at,${PROJECT_AUTHOR_SELECT}`;
+// projects <-> project_releases are also linked twice (release.project_id and projects.latest_release_id).
+export const LATEST_RELEASE_SELECT =
+  "latest:project_releases!projects_latest_release_id_fkey(id,version,file_name,works_yes,works_no,created_at)";
+
+export const SUMMARY_SELECT = `id,title,summary,tags,cover_url,works_on,youtube_id,vote_count,comment_count,download_count,works_yes,works_no,created_at,activity_at,${PROJECT_AUTHOR_SELECT},${LATEST_RELEASE_SELECT}`;
 
 export type FeedTab = "foryou" | "new" | "top";
+
+export const RELEASE_SELECT =
+  "id,version,changelog,works_on,file_path,file_name,file_size,download_count,works_yes,works_no,created_at";
 
 /** Supabase returns embedded one-to-one relations as an object, but types them loosely. */
 export function asSummaries(rows: unknown): ProjectSummary[] {
@@ -28,6 +35,12 @@ export async function getFollowedTags(supabase: SupabaseClient, userId: string |
   if (!userId) return [];
   const { data } = await supabase.from("tag_follows").select("tag").eq("user_id", userId).order("tag");
   return (data ?? []).map((r) => r.tag as string);
+}
+
+export async function getFollowedProjectIds(supabase: SupabaseClient, userId: string | undefined): Promise<string[]> {
+  if (!userId) return [];
+  const { data } = await supabase.from("project_follows").select("project_id").eq("user_id", userId).limit(500);
+  return (data ?? []).map((r) => r.project_id as string);
 }
 
 export async function getVotedIds(
@@ -46,7 +59,14 @@ export async function getVotedIds(
 
 export async function getFeed(
   supabase: SupabaseClient,
-  opts: { tab: FeedTab; page: number; followedTags: string[]; tag?: string; authorId?: string },
+  opts: {
+    tab: FeedTab;
+    page: number;
+    followedTags?: string[];
+    followedProjectIds?: string[];
+    tag?: string;
+    authorId?: string;
+  },
 ): Promise<{ projects: ProjectSummary[]; hasMore: boolean }> {
   // "Load more" grows the list: page N shows items 0..(N+1)*PAGE_SIZE.
   const limit = (opts.page + 1) * PAGE_SIZE;
@@ -54,12 +74,20 @@ export async function getFeed(
 
   if (opts.tag) query = query.contains("tags", [opts.tag]);
   if (opts.authorId) query = query.eq("author_id", opts.authorId);
-  if (opts.tab === "foryou" && opts.followedTags.length > 0) query = query.overlaps("tags", opts.followedTags);
+  if (opts.tab === "foryou") {
+    // Tags and ids are slug/uuid-shaped, so they're safe inside a PostgREST filter string.
+    const filters: string[] = [];
+    if (opts.followedTags?.length) filters.push(`tags.ov.{${opts.followedTags.join(",")}}`);
+    if (opts.followedProjectIds?.length) filters.push(`id.in.(${opts.followedProjectIds.join(",")})`);
+    if (filters.length === 0) return { projects: [], hasMore: false };
+    query = query.or(filters.join(","));
+  }
 
+  // "Latest" and "For you" sort by activity, so a new release bumps a project back up.
   query =
     opts.tab === "top"
       ? query.order("vote_count", { ascending: false }).order("created_at", { ascending: false })
-      : query.order("created_at", { ascending: false });
+      : query.order("activity_at", { ascending: false });
 
   // Fetch one extra row to know whether there is another page.
   const { data, error } = await query.range(0, limit);

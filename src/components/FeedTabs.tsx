@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { FeedTab } from "@/lib/queries";
 
-const LABELS: Record<FeedTab, string> = { foryou: "For you", new: "New", top: "Top" };
+const LABELS: Record<FeedTab, string> = { foryou: "For you", new: "Latest", top: "Top" };
 
 export function FeedTabs({
   active,

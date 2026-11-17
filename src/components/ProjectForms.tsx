@@ -26,16 +26,39 @@ export function CommentForm({ action }: { action: BoundAction }) {
 
 export function WorksReportForm({
   action,
-  existing,
+  releases,
+  myReports,
 }: {
   action: BoundAction;
-  existing: { worked: boolean; setup: string | null } | null;
+  releases: { id: string; version: string }[]; // newest first
+  myReports: { release_id: string | null; worked: boolean; setup: string | null }[];
 }) {
   const [state, formAction] = useActionState(action, undefined);
+  const [releaseId, setReleaseId] = useState(releases[0]?.id ?? "");
+  const existing = myReports.find((r) => (r.release_id ?? "") === releaseId) ?? null;
+
   return (
-    <form action={formAction} className="flex flex-col gap-2">
+    // key: reset the radio/setup defaults when switching versions
+    <form key={releaseId} action={formAction} className="flex flex-col gap-2">
+      <input type="hidden" name="release_id" value={releaseId} />
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="font-medium">Did it work for you?</span>
+        {releases.length > 1 && (
+          <select
+            aria-label="Version"
+            value={releaseId}
+            onChange={(e) => setReleaseId(e.target.value)}
+            className="rounded-md border border-border bg-surface px-2 py-1 font-mono text-xs"
+          >
+            {releases.map((r, i) => (
+              <option key={r.id} value={r.id}>
+                v{r.version}
+                {i === 0 ? " (latest)" : ""}
+              </option>
+            ))}
+          </select>
+        )}
+        {releases.length === 1 && <span className="font-mono text-xs text-muted">v{releases[0].version}</span>}
         <label className="flex items-center gap-1.5">
           <input type="radio" name="worked" value="yes" defaultChecked={existing?.worked === true} required /> Yes
         </label>

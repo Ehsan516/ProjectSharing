@@ -3,12 +3,12 @@
 import { useActionState, useState, useTransition } from "react";
 import { createProject } from "@/lib/actions";
 import { getBrowserClient } from "@/lib/supabase/client";
-import { looksLikeZip, uploadWithProgress } from "@/lib/upload";
-import { formatBytes, parseTags, parseYouTubeId } from "@/lib/utils";
+import { uploadWithProgress, uploadZip } from "@/lib/upload";
+import { parseTags, parseYouTubeId } from "@/lib/utils";
 import { FormMessage } from "@/components/SubmitButton";
 import { YouTubeEmbed } from "@/components/YouTubeEmbed";
+import { ZipField } from "@/components/ZipField";
 
-const MAX_ZIP_BYTES = 50 * 1024 * 1024;
 const MAX_COVER_BYTES = 5 * 1024 * 1024;
 const COVER_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -31,20 +31,6 @@ export function NewProjectForm() {
   const youtubeId = parseYouTubeId(youtubeRaw);
   const busy = progress !== null || saving;
 
-  async function onZipChange(file: File | undefined) {
-    setLocalError(null);
-    if (!file) return setZip(null);
-    if (!file.name.toLowerCase().endsWith(".zip") || !(await looksLikeZip(file))) {
-      setZip(null);
-      return setLocalError("Only .zip files can be uploaded.");
-    }
-    if (file.size > MAX_ZIP_BYTES) {
-      setZip(null);
-      return setLocalError(`Zip must be ${formatBytes(MAX_ZIP_BYTES)} or smaller.`);
-    }
-    setZip(file);
-  }
-
   function onCoverChange(file: File | undefined) {
     setLocalError(null);
     if (!file) return setCover(null);
@@ -65,7 +51,6 @@ export function NewProjectForm() {
     setLocalError(null);
     const formData = new FormData(e.currentTarget);
     formData.delete("cover_file");
-    formData.delete("zip_file");
 
     try {
       const {
@@ -80,12 +65,9 @@ export function NewProjectForm() {
         formData.set("cover_path", path);
       }
       if (zip) {
-        const path = `${user.id}/${crypto.randomUUID()}.zip`;
-        await uploadWithProgress("files", path, zip, "application/zip", (f) =>
-          setProgress(`Uploading zip… ${Math.round(f * 100)}%`),
-        );
-        formData.set("file_path", path);
-        formData.set("file_name", zip.name);
+        const uploaded = await uploadZip(zip, (f) => setProgress(`Uploading zip… ${Math.round(f * 100)}%`));
+        formData.set("file_path", uploaded.file_path);
+        formData.set("file_name", uploaded.file_name);
       }
     } catch (err) {
       setProgress(null);
@@ -137,21 +119,20 @@ export function NewProjectForm() {
         )}
       </div>
 
-      <div>
-        <label htmlFor="zip_file" className="label">
-          Files (.zip)
-        </label>
-        <input
-          id="zip_file"
-          name="zip_file"
-          type="file"
-          accept=".zip,application/zip,application/x-zip-compressed"
-          onChange={(e) => onZipChange(e.target.files?.[0])}
-          className="block w-full text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-surface-2 file:px-3 file:py-2 file:text-sm file:font-medium file:text-text"
+      <div className="grid gap-5 sm:grid-cols-[1fr_160px]">
+        <ZipField
+          onChange={(file, error) => {
+            setZip(file);
+            setLocalError(error);
+          }}
         />
-        <p className="hint">
-          {zip ? `${zip.name} · ${formatBytes(zip.size)}` : "Up to 50 MB. No ROMs, pirated software or anything you don't have the rights to share."}
-        </p>
+        <div>
+          <label htmlFor="version" className="label">
+            Version
+          </label>
+          <input id="version" name="version" maxLength={40} className="input" placeholder="1.0" />
+          <p className="hint">You can publish updates later.</p>
+        </div>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">

@@ -28,7 +28,7 @@ export default async function ProfilePage({ params, searchParams }: { params: Pa
   const profile = data as Profile | null;
   if (!profile) notFound();
 
-  const { projects, hasMore } = await getFeed(supabase, { tab, page, followedTags: [], authorId: profile.id });
+  const { projects, hasMore } = await getFeed(supabase, { tab, page, authorId: profile.id });
   const votedIds = await getVotedIds(supabase, user?.id, projects.map((p) => p.id));
   const isMe = user?.id === profile.id;
 

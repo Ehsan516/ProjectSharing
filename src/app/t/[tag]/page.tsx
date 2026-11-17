@@ -24,7 +24,7 @@ export default async function TagPage({ params, searchParams }: { params: Params
 
   const { supabase, user } = await getUser();
   const [{ projects, hasMore }, followedTags] = await Promise.all([
-    getFeed(supabase, { tab, page, followedTags: [], tag }),
+    getFeed(supabase, { tab, page, tag }),
     getFollowedTags(supabase, user?.id),
   ]);
   const votedIds = await getVotedIds(supabase, user?.id, projects.map((p) => p.id));

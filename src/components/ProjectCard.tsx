@@ -1,12 +1,18 @@
 import Link from "next/link";
 import type { ProjectSummary } from "@/lib/types";
-import { displayName, timeAgo } from "@/lib/utils";
+import { displayName, formatCount, timeAgo } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
 import { TagChip } from "@/components/TagChip";
 import { VoteButton } from "@/components/VoteButton";
 import { YouTubeEmbed } from "@/components/YouTubeEmbed";
 
 export function ProjectCard({ project, voted }: { project: ProjectSummary; voted: boolean }) {
+  const latest = project.latest;
+  // A release published well after the project itself counts as an update.
+  const updated = latest && new Date(latest.created_at).getTime() - new Date(project.created_at).getTime() > 60_000;
+  const yes = latest ? latest.works_yes : project.works_yes;
+  const no = latest ? latest.works_no : project.works_no;
+
   return (
     <article className="card flex gap-4 p-4 transition hover:border-accent/50">
       {project.cover_url && !project.youtube_id && (
@@ -23,7 +29,10 @@ export function ProjectCard({ project, voted }: { project: ProjectSummary; voted
 
       <div className="min-w-0 flex-1">
         <Link href={`/p/${project.id}`} className="block">
-          <h2 className="truncate text-base font-semibold hover:text-accent">{project.title}</h2>
+          <h2 className="flex min-w-0 items-baseline gap-2 text-base font-semibold hover:text-accent">
+            <span className="truncate">{project.title}</span>
+            {latest && <span className="shrink-0 font-mono text-xs font-medium text-muted">v{latest.version}</span>}
+          </h2>
           <p className="mt-0.5 line-clamp-2 text-sm text-muted">{project.summary}</p>
         </Link>
 
@@ -48,14 +57,21 @@ export function ProjectCard({ project, voted }: { project: ProjectSummary; voted
               {displayName(project.author)}
             </Link>
           )}
-          <span>{timeAgo(project.created_at)}</span>
+          {updated ? (
+            <span className="font-medium text-accent">updated {timeAgo(latest.created_at)}</span>
+          ) : (
+            <span>{timeAgo(project.created_at)}</span>
+          )}
           <Link href={`/p/${project.id}#comments`} className="hover:text-text">
             {project.comment_count} {project.comment_count === 1 ? "comment" : "comments"}
           </Link>
-          {project.file_name && <span title={project.file_name}>⬇ .zip</span>}
-          {project.works_yes + project.works_no > 0 && (
+          {latest?.file_name && (
+            <span title={`${project.download_count} downloads`}>⬇ {formatCount(project.download_count)}</span>
+          )}
+          {yes + no > 0 && (
             <span className="text-good">
-              ✓ worked for {project.works_yes}/{project.works_yes + project.works_no}
+              ✓ worked for {yes}/{yes + no}
+              {latest ? ` on v${latest.version}` : ""}
             </span>
           )}
         </div>
