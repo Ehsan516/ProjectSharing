@@ -1,0 +1,63 @@
+import Link from "next/link";
+import { getUser } from "@/lib/supabase/server";
+import { getFeed, getFollowedTags, getPopularTags, getVotedIds, parsePage, type FeedTab } from "@/lib/queries";
+import { FeedTabs } from "@/components/FeedTabs";
+import { ProjectList } from "@/components/ProjectList";
+import { Sidebar } from "@/components/Sidebar";
+
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+export default async function HomePage({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const { supabase, user } = await getUser();
+  const followedTags = await getFollowedTags(supabase, user?.id);
+
+  const requested = params.tab as FeedTab | undefined;
+  const defaultTab: FeedTab = followedTags.length > 0 ? "foryou" : "new";
+  const tab: FeedTab = requested && ["foryou", "new", "top"].includes(requested) ? requested : defaultTab;
+  const page = parsePage(params.page);
+
+  const needsFollows = tab === "foryou" && followedTags.length === 0;
+  const [{ projects, hasMore }, popularTags] = await Promise.all([
+    needsFollows ? Promise.resolve({ projects: [], hasMore: false }) : getFeed(supabase, { tab, page, followedTags }),
+    getPopularTags(supabase, 24),
+  ]);
+  const votedIds = await getVotedIds(supabase, user?.id, projects.map((p) => p.id));
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
+      <section className="min-w-0">
+        <FeedTabs active={tab} basePath="/" />
+        <ProjectList
+          projects={projects}
+          votedIds={votedIds}
+          hasMore={hasMore}
+          nextHref={`/?tab=${tab}&page=${page + 1}`}
+          empty={
+            needsFollows ? (
+              user ? (
+                <>Your feed shows projects from tags you follow. Pick some from Popular tags to get started.</>
+              ) : (
+                <>
+                  <Link href="/login?next=/" className="text-accent hover:underline">
+                    Sign in
+                  </Link>{" "}
+                  and follow tags to get a personal feed.
+                </>
+              )
+            ) : (
+              <>
+                Nothing here yet.{" "}
+                <Link href="/new" className="text-accent hover:underline">
+                  Post the first project
+                </Link>
+                .
+              </>
+            )
+          }
+        />
+      </section>
+      <Sidebar popularTags={popularTags} followedTags={followedTags} signedIn={!!user} />
+    </div>
+  );
+}

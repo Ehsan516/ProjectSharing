@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #f0f0ec;
+  --border: #e4e4de;
+  --text: #18181b;
+  --muted: #6b6b73;
+  --accent: #e8590c;
+  --accent-fg: #ffffff;
+  --accent-soft: #fff1e8;
+  --good: #2f9e44;
+  --bad: #e03131;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e0e10;
+    --surface: #17171a;
+    --surface-2: #1f1f23;
+    --border: #2a2a30;
+    --text: #ececef;
+    --muted: #9a9aa3;
+    --accent: #ff7a2e;
+    --accent-fg: #160a02;
+    --accent-soft: #2a1608;
+    --good: #51cf66;
+    --bad: #ff6b6b;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60;
+}
+@utility btn-primary {
+  @apply btn bg-accent text-accent-fg hover:brightness-110;
+}
+@utility btn-ghost {
+  @apply btn border border-border bg-surface text-text hover:bg-surface-2;
+}
+@utility input {
+  @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none;
+}
+@utility label {
+  @apply mb-1 block text-sm font-medium;
+}
+@utility hint {
+  @apply mt-1 text-xs text-muted;
+}
+@utility card {
+  @apply rounded-xl border border-border bg-surface;
+}
