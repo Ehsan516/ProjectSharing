@@ -45,31 +45,31 @@ export function VoteButton({
 
   const big = size === "lg";
   const half = `flex items-center gap-1.5 font-semibold transition disabled:opacity-60 ${
-    big ? "h-10 px-4 text-sm" : "h-7 px-2.5 text-xs"
+    big ? "h-10 px-3.5 text-sm" : "h-7 px-2 text-[11px]"
   }`;
   const icon = big ? 16 : 13;
 
   return (
-    <div className="flex shrink-0 items-center overflow-hidden rounded-full bg-surface-2">
+    <div className="flex shrink-0 items-center overflow-hidden rounded-md border border-border bg-surface font-mono">
       <button
         type="button"
         onClick={(e) => choose(e, 1)}
         disabled={pending}
         aria-pressed={state.reaction === 1}
         aria-label={state.reaction === 1 ? "Remove like" : "Like"}
-        className={`${half} ${state.reaction === 1 ? "text-accent" : "text-text hover:text-accent"}`}
+        className={`${half} ${state.reaction === 1 ? "bg-signal text-signal-fg" : "text-text hover:bg-surface-2"}`}
       >
         <ThumbIcon size={icon} filled={state.reaction === 1} />
         {state.likes}
       </button>
-      <span aria-hidden className={`w-px bg-[var(--hairline)] ${big ? "h-5" : "h-4"}`} />
+      <span aria-hidden className="w-px self-stretch bg-border" />
       <button
         type="button"
         onClick={(e) => choose(e, -1)}
         disabled={pending}
         aria-pressed={state.reaction === -1}
         aria-label={state.reaction === -1 ? "Remove dislike" : "Dislike"}
-        className={`${half} ${state.reaction === -1 ? "text-bad" : "text-muted hover:text-bad"}`}
+        className={`${half} ${state.reaction === -1 ? "bg-surface-2 text-text" : "text-muted hover:bg-surface-2 hover:text-text"}`}
       >
         <ThumbIcon size={icon} filled={state.reaction === -1} down />
         {state.dislikes}

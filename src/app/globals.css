@@ -1,34 +1,48 @@
 @import "tailwindcss";
 
+/*
+  "Workshop" palette: warm paper, ink, and one signal orange.
+  - signal: the bright orange, only for fills (the main button, the logo, active states)
+  - accent: a deeper orange that's readable as text (links, highlights)
+  The content (thumbnails, videos) supplies the colour; the interface stays quiet.
+*/
 :root {
-  --bg: #f5f5f7;
-  --surface: #ffffff;
-  --surface-2: #f0f0f2;
-  --border: #d9d9de;
-  --hairline: rgba(0, 0, 0, 0.06);
-  --text: #1d1d1f;
-  --muted: #6e6e73;
-  --accent: #e8590c;
-  --accent-fg: #ffffff;
-  --accent-soft: #fff1e8;
-  --good: #2f9e44;
-  --bad: #e03131;
+  color-scheme: light;
+  --bg: #edebe6;
+  --surface: #f8f7f4;
+  --surface-2: #e4e1da;
+  --border: #d6d2c9;
+  --border-strong: #bdb8ad;
+  --hairline: rgba(25, 25, 23, 0.09);
+  --text: #191917;
+  --muted: #6b6a64;
+  --signal: #ff4f1a;
+  --signal-hover: #f0430f;
+  --signal-fg: #191917;
+  --accent: #b83a0b;
+  --accent-soft: #ffe3d8;
+  --good: #2b7a3f;
+  --bad: #c4321c;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #000000;
-    --surface: #161617;
-    --surface-2: #1d1d1f;
-    --border: #333336;
-    --hairline: rgba(255, 255, 255, 0.07);
-    --text: #f5f5f7;
-    --muted: #a1a1a6;
-    --accent: #ff7a2e;
-    --accent-fg: #160a02;
-    --accent-soft: #2a1608;
-    --good: #51cf66;
-    --bad: #ff6b6b;
+    color-scheme: dark;
+    --bg: #141311;
+    --surface: #1c1b18;
+    --surface-2: #26241f;
+    --border: #34312b;
+    --border-strong: #4a463e;
+    --hairline: rgba(255, 248, 235, 0.08);
+    --text: #edeae3;
+    --muted: #9c978c;
+    --signal: #ff6a3d;
+    --signal-hover: #ff7f57;
+    --signal-fg: #1a0a03;
+    --accent: #ff8a5c;
+    --accent-soft: #3a1e12;
+    --good: #6cc785;
+    --bad: #ff7a5c;
   }
 }
 
@@ -37,15 +51,19 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-text: var(--text);
   --color-muted: var(--muted);
+  --color-signal: var(--signal);
+  --color-signal-hover: var(--signal-hover);
+  --color-signal-fg: var(--signal-fg);
   --color-accent: var(--accent);
-  --color-accent-fg: var(--accent-fg);
   --color-accent-soft: var(--accent-soft);
   --color-good: var(--good);
   --color-bad: var(--bad);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
+  --font-mono: var(--font-code);
 }
 
 body {
@@ -53,21 +71,52 @@ body {
   color: var(--text);
 }
 
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading), var(--font-body), sans-serif;
+  letter-spacing: -0.015em;
+}
+
+/* Keyboard users get a clear focus ring; mouse clicks don't show one. */
+:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+.input:focus-visible {
+  outline: none;
+}
+
+/* Safari still draws the disclosure triangle on <summary> without this. */
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Jump links (#comments, #releases) land below the sticky header, not under it. */
+[id] {
+  scroll-margin-top: 5rem;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
 @utility btn {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60;
 }
 @utility btn-primary {
-  @apply btn bg-accent text-accent-fg hover:brightness-110;
+  @apply btn bg-signal text-signal-fg hover:bg-signal-hover;
 }
 @utility btn-ghost {
-  @apply btn bg-surface-2 text-text hover:brightness-95;
+  @apply btn border border-border bg-surface text-text hover:border-border-strong hover:bg-surface-2;
 }
-/* Quiet secondary action, like Apple's "Learn more >" links */
+/* Quiet secondary action */
 @utility link-action {
   @apply inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline disabled:opacity-60;
 }
 @utility input {
-  @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-muted focus:border-accent focus:outline-none;
+  @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-muted focus:border-text focus:outline-none;
 }
 @utility label {
   @apply mb-1 block text-sm font-medium;
@@ -75,11 +124,13 @@ body {
 @utility hint {
   @apply mt-1 text-xs text-muted;
 }
-/* Borderless surfaces: separation comes from space and soft tone, not outlines. */
+/* Small uppercase mono label for section headings and metadata, the workshop signature. */
+@utility eyebrow {
+  @apply font-mono text-[11px] font-medium tracking-[0.08em] text-muted uppercase;
+}
 @utility card {
-  @apply rounded-2xl bg-surface;
-  box-shadow: 0 0 0 1px var(--hairline);
+  @apply rounded-lg border border-border bg-surface;
 }
 @utility panel {
-  @apply rounded-2xl bg-surface-2;
+  @apply rounded-lg bg-surface-2;
 }

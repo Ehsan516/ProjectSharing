@@ -9,7 +9,7 @@ import {
   REPORT_AUTHOR_SELECT,
 } from "@/lib/queries";
 import type { Comment, Project, Release, WorksReport } from "@/lib/types";
-import { displayName, formatBytes, formatCount, timeAgo } from "@/lib/utils";
+import { displayName, formatBytes, formatCount } from "@/lib/utils";
 import {
   addComment,
   deleteComment,
@@ -21,8 +21,11 @@ import {
 } from "@/lib/actions";
 import { Avatar } from "@/components/Avatar";
 import { FollowProjectButton } from "@/components/FollowProjectButton";
+import { DownloadIcon } from "@/components/Icons";
 import { MoreMenu } from "@/components/MoreMenu";
+import { ShareButton } from "@/components/ShareButton";
 import { TagChip } from "@/components/TagChip";
+import { TimeAgo } from "@/components/TimeAgo";
 import { VoteButton, type Reaction } from "@/components/VoteButton";
 import { WorksTally } from "@/components/WorksTally";
 import { YouTubeEmbed } from "@/components/YouTubeEmbed";
@@ -43,10 +46,14 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const loaded = await loadProject((await params).id);
   if (!loaded?.project) return { title: "Not found" };
   const { project } = loaded;
+  // Link previews (TikTok bio, Discord, X) use the cover, or the video thumbnail if there's no cover.
+  const image = project.cover_url ?? (project.youtube_id ? `https://i.ytimg.com/vi/${project.youtube_id}/hqdefault.jpg` : null);
+  const images = image ? [image] : [];
   return {
     title: project.title,
     description: project.summary,
-    openGraph: { title: project.title, description: project.summary, images: project.cover_url ? [project.cover_url] : [] },
+    openGraph: { type: "article", title: project.title, description: project.summary, images },
+    twitter: { card: image ? "summary_large_image" : "summary", title: project.title, description: project.summary, images },
   };
 }
 
@@ -105,7 +112,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
       {/* Header: one idea, big and plain */}
       <header className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{project.title}</h1>
+          <h1 className="text-3xl font-bold leading-[1.05] tracking-tight sm:text-5xl">{project.title}</h1>
           <p className="mt-2 text-lg text-muted">{project.summary}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
             {project.author && (
@@ -114,8 +121,8 @@ export default async function ProjectPage({ params }: { params: Params }) {
                 {displayName(project.author)}
               </Link>
             )}
-            <span>posted {timeAgo(project.created_at)}</span>
-            {wasUpdated && latest && <span className="text-accent">updated {timeAgo(latest.created_at)}</span>}
+            <TimeAgo iso={project.created_at} prefix="posted " />
+            {wasUpdated && latest && <TimeAgo iso={latest.created_at} prefix="updated " className="text-accent" />}
           </div>
         </div>
         <VoteButton
@@ -132,7 +139,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
       ) : (
         project.cover_url && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={project.cover_url} alt="" className="max-h-[440px] w-full rounded-2xl object-cover" />
+          <img src={project.cover_url} alt="" className="max-h-[440px] w-full rounded-lg border border-border object-cover" />
         )
       )}
 
@@ -141,6 +148,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           {latest && latestDownload ? (
             <a href={latestDownload} className="btn-primary px-6 py-2.5 text-base" rel="nofollow">
+              <DownloadIcon size={18} />
               Download v{latest.version}
               {latest.file_size ? <span className="font-normal opacity-80">· {formatBytes(latest.file_size)}</span> : null}
             </a>
@@ -166,6 +174,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
               View source ↗
             </a>
           )}
+          <ShareButton title={project.title} text={project.summary} />
           {isOwner ? (
             <>
               <Link href={`/p/${project.id}/release`} className="link-action">
@@ -215,10 +224,10 @@ export default async function ProjectPage({ params }: { params: Params }) {
 
       {/* At a glance */}
       <dl className="panel grid grid-cols-2 gap-x-6 gap-y-4 p-5 sm:grid-cols-4">
-        <Stat label="Version" value={latest ? `v${latest.version}` : "—"} mono />
-        <Stat label="Downloads" value={latest?.file_name ? project.download_count.toLocaleString() : "—"} />
+        <Stat label="Version" value={latest ? `v${latest.version}` : "None yet"} mono={!!latest} />
+        <Stat label="Downloads" value={latest?.file_name ? project.download_count.toLocaleString() : "No file"} mono={!!latest?.file_name} />
         <div className="col-span-2">
-          <dt className="text-xs text-muted">{latest ? `Works on v${latest.version}?` : "Works for people?"}</dt>
+          <dt className="eyebrow">{latest ? `Works on v${latest.version}?` : "Works for people?"}</dt>
           <dd className="mt-1 text-sm font-medium">
             <WorksTally
               yes={latest ? latest.works_yes : project.works_yes}
@@ -228,7 +237,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
         </div>
         {(latest?.works_on || project.works_on) && (
           <div className="col-span-2 sm:col-span-4">
-            <dt className="text-xs text-muted">Tested on</dt>
+            <dt className="eyebrow">Tested on</dt>
             <dd className="mt-1 text-sm">{latest?.works_on || project.works_on}</dd>
           </div>
         )}
@@ -261,9 +270,9 @@ export default async function ProjectPage({ params }: { params: Params }) {
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="font-mono font-semibold">v{r.version}</span>
                     {i === 0 && (
-                      <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent">Latest</span>
+                      <span className="eyebrow rounded bg-signal px-1.5 py-px !text-signal-fg">Latest</span>
                     )}
-                    <span className="text-xs text-muted">{timeAgo(r.created_at)}</span>
+                    <TimeAgo iso={r.created_at} className="text-xs text-muted" />
                     <WorksTally yes={r.works_yes} no={r.works_no} compact />
                     {r.file_path && (
                       <span className="text-xs text-muted">
@@ -327,7 +336,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
                     v{versionOf.get(r.release_id)}
                   </span>
                 )}
-                {r.setup && <span className="truncate text-muted">— {r.setup}</span>}
+                {r.setup && <span className="truncate text-muted">{r.setup}</span>}
               </li>
             ))}
           </ul>
@@ -337,8 +346,13 @@ export default async function ProjectPage({ params }: { params: Params }) {
       {/* Comments */}
       <section id="comments" className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold tracking-tight">
-          {project.comment_count} {project.comment_count === 1 ? "comment" : "comments"}
+          {project.comment_count > 0
+            ? `${project.comment_count} ${project.comment_count === 1 ? "comment" : "comments"}`
+            : "Comments"}
         </h2>
+        {comments.length === 0 && (
+          <p className="text-sm text-muted">No comments yet. Questions, bug reports and thanks all welcome.</p>
+        )}
         {comments.map((c) => (
           <div key={c.id} className="flex gap-3">
             <Avatar author={c.author} size={28} />
@@ -351,7 +365,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
                 ) : (
                   <span>deleted user</span>
                 )}
-                <span>{timeAgo(c.created_at)}</span>
+                <TimeAgo iso={c.created_at} />
                 {user?.id === c.author_id && (
                   <ConfirmButton action={deleteComment.bind(null, project.id, c.id)} confirmText="Delete this comment?">
                     Delete
@@ -381,8 +395,8 @@ export default async function ProjectPage({ params }: { params: Params }) {
 function Stat({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div>
-      <dt className="text-xs text-muted">{label}</dt>
-      <dd className={`mt-1 text-xl font-semibold tracking-tight ${mono ? "font-mono" : ""}`}>{value}</dd>
+      <dt className="eyebrow">{label}</dt>
+      <dd className={`mt-1.5 text-xl font-medium tracking-tight ${mono ? "font-mono" : ""}`}>{value}</dd>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { safeRedirectPath } from "@/lib/utils";
@@ -25,6 +26,17 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
           </p>
         )}
         <LoginForm next={next} />
+        <p className="mt-5 text-center text-xs text-muted">
+          By continuing you agree to the{" "}
+          <Link href="/terms" className="underline hover:text-text">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline hover:text-text">
+            Privacy policy
+          </Link>
+          . You must be 13 or over.
+        </p>
       </div>
     </div>
   );

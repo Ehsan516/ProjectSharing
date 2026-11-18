@@ -12,7 +12,8 @@ Stack: Next.js 15 (App Router, server actions) + Supabase (Postgres, auth, stora
 
 1. **Create a Supabase project** at https://supabase.com.
 2. **Run the schema:** in the Supabase dashboard open *SQL Editor → New query*, then paste and run each file in
-   [`supabase/migrations/`](supabase/migrations/) in order (`0001_…`, `0002_…`, `0003_…`).
+   [`supabase/migrations/`](supabase/migrations/) in order (`0001_…` through `0005_…`). Skipping one breaks the feed, because the code reads
+   columns the later migrations add.
 3. **Configure auth redirects:** *Authentication → URL Configuration*
    - Site URL: `http://localhost:3000` (your real domain later)
    - Redirect URLs: add `http://localhost:3000/auth/callback` (and `https://yourdomain.com/auth/callback` later)
@@ -59,6 +60,15 @@ security. Vote, comment and works counters are kept in sync by triggers, and cli
 - Users can report projects. Reports land in the `reports` table; review them in the Supabase Table Editor.
 - Zips are user uploads and are **not scanned**. Consider adding malware scanning (e.g. VirusTotal API) before launch.
 - Before launch, publish a DMCA / takedown contact, and terms that ban ROMs, pirated software and malware.
+
+## Legal pages and account deletion
+
+- `/terms`, `/privacy` and `/contact` (takedowns, complaints) are linked in the footer. Set `NEXT_PUBLIC_OPERATOR_NAME` and
+  `NEXT_PUBLIC_CONTACT_EMAIL`: until you do, those pages show a red placeholder where your name and email go.
+- Settings has **Download your data** (JSON export) and **Delete account**. Deletion needs `SUPABASE_SECRET_KEY` on the
+  server, because removing the sign-in account requires the service role.
+- The pages are a starting draft, not legal advice. Get them checked before launch, and update them if you add analytics,
+  ads or a new provider.
 
 ## Renaming
 

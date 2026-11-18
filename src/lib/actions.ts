@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient, getUser } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { postLoginPath } from "@/lib/auth";
 import type { ActionState } from "@/lib/types";
@@ -58,7 +59,17 @@ export async function signInWithEmail(_prev: ActionState, formData: FormData): P
     email,
     options: { emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}` },
   });
-  if (error) return { error: error.message };
+  if (error) {
+    // Keep the real reason in the server logs; show people something they can act on.
+    console.error("signInWithOtp failed:", error.status, error.code, error.message);
+    if (error.status === 429 || /rate limit/i.test(error.message)) {
+      return { error: "Too many sign-in emails were requested. Wait a few minutes, then try again." };
+    }
+    if (/error sending/i.test(error.message) || (error.status ?? 0) >= 500) {
+      return { error: "We couldn't send your sign-in email just now. Please try again in a few minutes." };
+    }
+    return { error: error.message };
+  }
   return { ok: true };
 }
 
@@ -437,4 +448,41 @@ export async function updateProfile(_prev: ActionState, formData: FormData): Pro
   }
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+/**
+ * Permanently deletes the signed-in user's account. Deleting the auth user cascades to their
+ * profile, projects, releases, comments, votes, reports and follows; their uploaded files are
+ * removed from storage first, since storage isn't covered by the cascade.
+ */
+export async function deleteAccount(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { supabase, user } = await requireUser("/settings");
+  const { data: profile } = await supabase.from("profiles").select("username").eq("id", user.id).single();
+  const typed = text(formData, "confirm", 40).toLowerCase().replace(/^@/, "");
+  if (!profile || typed !== profile.username) {
+    return { error: `Type your username (${profile?.username ?? ""}) to confirm.` };
+  }
+
+  const admin = createAdminClient();
+  if (!admin) return { error: "Account deletion isn't set up on this server yet. Email us and we'll delete it for you." };
+
+  for (const bucket of ["files", "covers"] as const) {
+    for (;;) {
+      const { data: objects, error } = await admin.storage.from(bucket).list(user.id, { limit: 100 });
+      if (error) return { error: "Couldn't remove your files. Nothing was deleted, please try again." };
+      if (!objects || objects.length === 0) break;
+      const { error: removeError } = await admin.storage
+        .from(bucket)
+        .remove(objects.map((o) => `${user.id}/${o.name}`));
+      if (removeError) return { error: "Couldn't remove your files. Please try again." };
+      if (objects.length < 100) break;
+    }
+  }
+
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+  if (error) return { error: "Couldn't delete your account. Please try again, or email us." };
+
+  await supabase.auth.signOut();
+  revalidatePath("/", "layout");
+  redirect("/?account=deleted");
 }

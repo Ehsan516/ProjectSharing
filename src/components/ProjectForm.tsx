@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
+import { useActionState, useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import type { ActionState } from "@/lib/types";
 import { getBrowserClient } from "@/lib/supabase/client";
@@ -55,6 +55,12 @@ export function ProjectForm({
   const [zip, setZip] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
+
+  // One preview URL per chosen file, released when it changes so previews don't leak memory.
+  const coverPreview = useMemo(() => (cover ? URL.createObjectURL(cover) : null), [cover]);
+  useEffect(() => () => {
+    if (coverPreview) URL.revokeObjectURL(coverPreview);
+  }, [coverPreview]);
 
   const tags = parseTags(tagsRaw);
   const youtubeId = parseYouTubeId(youtubeRaw);
@@ -159,8 +165,8 @@ export function ProjectForm({
         {tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {tags.map((t) => (
-              <span key={t} className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent">
-                #{t}
+              <span key={t} className="rounded border border-border bg-surface px-1.5 py-px font-mono text-[11px] text-text">
+                {t}
               </span>
             ))}
           </div>
@@ -303,10 +309,10 @@ export function ProjectForm({
             </label>
           </div>
         )}
-        {cover && (
+        {coverPreview && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={URL.createObjectURL(cover)}
+            src={coverPreview}
             alt=""
             className="mt-2 max-h-48 rounded-lg border border-border object-cover"
           />

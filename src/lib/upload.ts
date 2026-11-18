@@ -39,7 +39,7 @@ export async function uploadWithProgress(
       } catch {}
       reject(new Error(message));
     };
-    xhr.onerror = () => reject(new Error("Upload failed — check your connection."));
+    xhr.onerror = () => reject(new Error("Upload failed. Check your connection and try again."));
     xhr.send(file);
   });
 }

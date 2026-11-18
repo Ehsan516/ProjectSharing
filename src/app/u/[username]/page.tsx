@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { getFeed, getReactions, parsePage, type FeedTab } from "@/lib/queries";
 import type { Profile } from "@/lib/types";
-import { timeAgo } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
+import { TimeAgo } from "@/components/TimeAgo";
 import { FeedTabs } from "@/components/FeedTabs";
 import { ProjectList } from "@/components/ProjectList";
 
@@ -39,7 +39,7 @@ export default async function ProfilePage({ params, searchParams }: { params: Pa
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold">{profile.display_name || `@${profile.username}`}</h1>
           <p className="text-sm text-muted">
-            @{profile.username} · joined {timeAgo(profile.created_at)}
+            @{profile.username} · <TimeAgo iso={profile.created_at} prefix="joined " />
           </p>
           {profile.bio && <p className="mt-2 whitespace-pre-wrap text-sm">{profile.bio}</p>}
         </div>

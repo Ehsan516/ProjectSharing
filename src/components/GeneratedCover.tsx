@@ -1,18 +1,25 @@
-/** Stable gradient cover for projects without an image, so the grid never looks broken. */
+/**
+ * Cover for projects without an image: a flat tile from a small set of workshop colours,
+ * with the title set large. Picked from the project id, so it never changes.
+ */
+const TILES = [
+  { bg: "#2f4b7c", fg: "#f8f7f4" },
+  { bg: "#3d6b4f", fg: "#f8f7f4" },
+  { bg: "#8a3b2e", fg: "#f8f7f4" },
+  { bg: "#d9b54a", fg: "#191917" },
+  { bg: "#5b4a7a", fg: "#f8f7f4" },
+  { bg: "#c9c3b6", fg: "#191917" },
+  { bg: "#1f1e1b", fg: "#ff6a3d" },
+];
+
 export function GeneratedCover({ seed, title }: { seed: string; title: string }) {
   let hash = 0;
   for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-  const hue = hash % 360;
-  const hue2 = (hue + 35 + (hash % 50)) % 360;
+  const tile = TILES[hash % TILES.length];
 
   return (
-    <div
-      className="flex h-full w-full items-center justify-center p-6"
-      style={{ background: `linear-gradient(135deg, hsl(${hue} 70% 55%), hsl(${hue2} 75% 42%))` }}
-    >
-      <span className="line-clamp-2 text-center text-xl font-semibold tracking-tight text-white/95 drop-shadow-sm">
-        {title}
-      </span>
+    <div className="flex h-full w-full flex-col justify-end p-5" style={{ background: tile.bg, color: tile.fg }}>
+      <span className="line-clamp-2 font-display text-2xl font-bold leading-tight tracking-tight">{title}</span>
     </div>
   );
 }

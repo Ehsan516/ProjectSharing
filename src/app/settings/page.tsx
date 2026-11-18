@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
 import { safeRedirectPath } from "@/lib/utils";
+import { DeleteAccountForm } from "./DeleteAccountForm";
 import { SettingsForm } from "./SettingsForm";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -25,6 +26,28 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
         {welcome ? "This is how people will find you and your projects." : "Update your public profile."}
       </p>
       <SettingsForm profile={profile} welcome={welcome} next={next} />
+
+      {!welcome && (
+        <>
+          <section className="card mt-8 flex flex-col gap-2 p-5">
+            <h2 className="font-semibold">Your data</h2>
+            <p className="text-sm text-muted">
+              Download a copy of everything we hold about you: your account, profile, projects, comments, reports, likes
+              and follows.
+            </p>
+            <div>
+              <a href="/settings/export" className="btn-ghost mt-1" download>
+                Download your data
+              </a>
+            </div>
+          </section>
+
+          <section className="card mt-4 flex flex-col gap-2 p-5">
+            <h2 className="font-semibold text-bad">Delete account</h2>
+            <DeleteAccountForm username={profile.username} />
+          </section>
+        </>
+      )}
     </div>
   );
 }

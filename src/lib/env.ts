@@ -21,4 +21,14 @@ export const env = {
 };
 
 export const SITE_NAME = "Forkyard";
-export const SITE_TAGLINE = "Find and share the things people build — mods, tools, hacks and tweaks.";
+export const SITE_TAGLINE = "Find, download and follow the mods, romhacks, tools and tweaks fans build for the things they love.";
+
+/**
+ * Who runs the site and how to reach them. Shown on the Privacy, Terms and Contact pages,
+ * which UK law requires to name the operator and give a contact. Set these in your env vars.
+ */
+export const LEGAL = {
+  operator: process.env.NEXT_PUBLIC_OPERATOR_NAME || "",
+  email: process.env.NEXT_PUBLIC_CONTACT_EMAIL || "",
+  updated: "18 November 2026",
+};

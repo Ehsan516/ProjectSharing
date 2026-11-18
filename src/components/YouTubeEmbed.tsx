@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useVideoConsent } from "@/lib/videoConsent";
 
 // Minimal typings for the YouTube IFrame Player API (no API key needed).
 type YTPlayer = {
@@ -53,20 +54,30 @@ let activePlayer: YTPlayer | null = null;
 
 /**
  * YouTube video that:
- *  - shows a thumbnail until it's near the viewport (cheap feeds),
- *  - autoplays MUTED while it's in the middle of the screen, pauses when scrolled away,
- *  - unmutes when clicked.
+ *  - shows only a thumbnail until the visitor either taps play or has allowed autoplay,
+ *    because loading YouTube can set cookies (UK PECR needs consent first),
+ *  - with autoplay allowed: loads near the viewport and plays MUTED while it's in the middle
+ *    of the screen, pausing when scrolled away; tap to unmute,
+ *  - when tapped: loads and plays straight away, with sound where the browser allows it.
  */
 export function YouTubeEmbed({ videoId, title, flush = false }: { videoId: string; title: string; flush?: boolean }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<YTPlayer | null>(null);
   const centeredRef = useRef(false);
+  const consent = useVideoConsent();
+  const autoplay = consent === "yes";
+  const autoplayRef = useRef(autoplay);
+  autoplayRef.current = autoplay;
+  const [requested, setRequested] = useState(false);
+  const requestedRef = useRef(false);
+  requestedRef.current = requested;
   const [near, setNear] = useState(false);
   const [ready, setReady] = useState(false);
   const [muted, setMuted] = useState(true);
+  const shouldMount = requested || (autoplay && near);
 
-  // Mount the player only when within ~1 screen of the viewport.
+  // Track when we're within ~1 screen of the viewport, to load autoplay players just in time.
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
@@ -85,8 +96,11 @@ export function YouTubeEmbed({ videoId, title, flush = false }: { videoId: strin
         centeredRef.current = entry.isIntersecting;
         const player = playerRef.current;
         if (!player) return;
-        if (entry.isIntersecting && !reduceMotion) play(player);
-        else player.pauseVideo();
+        if (entry.isIntersecting) {
+          if (autoplayRef.current && !reduceMotion) play(player);
+        } else {
+          player.pauseVideo();
+        }
       },
       { rootMargin: "-40% 0px -40% 0px" },
     );
@@ -96,7 +110,7 @@ export function YouTubeEmbed({ videoId, title, flush = false }: { videoId: strin
 
   // Create / destroy the YouTube player.
   useEffect(() => {
-    if (!near || !mountRef.current) return;
+    if (!shouldMount || !mountRef.current) return;
     let cancelled = false;
     const target = document.createElement("div"); // YT replaces this node with an iframe; keep it out of React's tree
     mountRef.current.appendChild(target);
@@ -112,11 +126,18 @@ export function YouTubeEmbed({ videoId, title, flush = false }: { videoId: strin
         events: {
           onReady: ({ target: player }) => {
             if (cancelled) return;
-            player.mute();
             setReady(true);
+            if (requestedRef.current) {
+              // The visitor tapped play, so they want sound.
+              player.unMute();
+              setMuted(false);
+              play(player);
+              return;
+            }
+            player.mute();
             setMuted(true);
             const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-            if (centeredRef.current && !reduceMotion) play(player);
+            if (centeredRef.current && autoplayRef.current && !reduceMotion) play(player);
           },
         },
       });
@@ -133,7 +154,7 @@ export function YouTubeEmbed({ videoId, title, flush = false }: { videoId: strin
       setReady(false);
       target.remove();
     };
-  }, [near, videoId]);
+  }, [shouldMount, videoId]);
 
   function play(player: YTPlayer) {
     if (activePlayer && activePlayer !== player) activePlayer.pauseVideo();
@@ -152,7 +173,7 @@ export function YouTubeEmbed({ videoId, title, flush = false }: { videoId: strin
   return (
     <div
       ref={wrapperRef}
-      className={`relative aspect-video w-full overflow-hidden bg-black ${flush ? "" : "rounded-2xl"}`}
+      className={`relative aspect-video w-full overflow-hidden bg-black ${flush ? "" : "rounded-lg"}`}
     >
       {!ready && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -164,6 +185,20 @@ export function YouTubeEmbed({ videoId, title, flush = false }: { videoId: strin
         />
       )}
       <div ref={mountRef} className="absolute inset-0 [&>iframe]:h-full [&>iframe]:w-full" />
+      {!shouldMount && consent !== undefined && (
+        <button
+          type="button"
+          onClick={() => setRequested(true)}
+          aria-label={`Play video: ${title}`}
+          className="group/play absolute inset-0 grid place-items-center bg-black/10 transition hover:bg-black/25"
+        >
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-black/70 text-white backdrop-blur transition group-hover/play:scale-105 group-hover/play:bg-signal group-hover/play:text-signal-fg">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />
+            </svg>
+          </span>
+        </button>
+      )}
       {ready && muted && (
         <button
           type="button"

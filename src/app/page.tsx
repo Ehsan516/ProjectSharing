@@ -12,6 +12,8 @@ import {
 import { FeedTabs } from "@/components/FeedTabs";
 import { ProjectList } from "@/components/ProjectList";
 import { Sidebar } from "@/components/Sidebar";
+import { TagChip } from "@/components/TagChip";
+import { SITE_NAME } from "@/lib/env";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -39,6 +41,32 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
       <section className="min-w-0">
+        {params.account === "deleted" && (
+          <p role="status" className="panel mb-6 p-4 text-sm">
+            Your account and everything you posted have been deleted.
+          </p>
+        )}
+        {!user && page === 0 && (
+          <div className="panel mb-6 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:p-6">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-bold leading-tight tracking-tight sm:text-3xl">Fan-made software, all in one feed.</h1>
+              <p className="mt-1 text-sm text-muted">
+                Mods, romhacks, tools and tweaks for the games and devices you love. Watch a preview, see if it
+                worked for other people, download it.
+              </p>
+              {popularTags.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {popularTags.slice(0, 6).map((t) => (
+                    <TagChip key={t.tag} tag={t.tag} />
+                  ))}
+                </div>
+              )}
+            </div>
+            <Link href="/login?next=/" className="btn-primary shrink-0">
+              Join {SITE_NAME}
+            </Link>
+          </div>
+        )}
         <FeedTabs active={tab} basePath="/" />
         <ProjectList
           projects={projects}
@@ -48,7 +76,14 @@ export default async function HomePage({ searchParams }: { searchParams: SearchP
           empty={
             needsFollows ? (
               user ? (
-                <>Your feed shows projects and tags you follow, including new updates. Pick some tags from Popular tags to get started.</>
+                <>
+                  Your feed shows new projects in tags you follow, plus updates to projects you follow. Pick a few
+                  from Popular tags to get started, or browse{" "}
+                  <Link href="/?tab=new" className="text-accent hover:underline">
+                    Latest
+                  </Link>
+                  .
+                </>
               ) : (
                 <>
                   <Link href="/login?next=/" className="text-accent hover:underline">

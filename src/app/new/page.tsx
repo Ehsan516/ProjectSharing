@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { createProject } from "@/lib/actions";
@@ -14,8 +15,12 @@ export default async function NewProjectPage() {
     <div className="mx-auto max-w-2xl">
       <h1 className="text-2xl font-bold">Post a project</h1>
       <p className="mb-6 mt-1 text-sm text-muted">
-        Share something you built: a mod, tool, script, tweak or hack. Don&apos;t upload
-        ROMs, paid software or anything you don&apos;t have the rights to.
+        Share something you built: a mod, tool, script, tweak or hack. Don&apos;t upload ROMs, paid software or anything
+        you don&apos;t have the rights to.{" "}
+        <Link href="/terms" className="text-accent hover:underline">
+          Read the rules
+        </Link>
+        .
       </p>
       <ProjectForm mode="create" action={createProject} />
     </div>
