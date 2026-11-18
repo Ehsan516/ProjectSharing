@@ -6,6 +6,9 @@ import { SITE_NAME } from "@/lib/env";
 import { Avatar } from "@/components/Avatar";
 import { Dropdown } from "@/components/Dropdown";
 import { LogoMark } from "@/components/Logo";
+import { SettingsIcon, SignOutIcon, UserIcon } from "@/components/Icons";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { VideoConsentToggle } from "@/components/VideoConsent";
 import { SearchBox } from "@/components/SearchBox";
 
 export async function Header() {
@@ -35,21 +38,36 @@ export async function Header() {
             <Dropdown
               label="Account menu"
               summaryClassName="block rounded-full ring-1 ring-border hover:ring-border-strong"
-              panelClassName="w-52 overflow-hidden p-1 text-sm"
+              panelClassName="w-60 overflow-hidden p-1 text-sm"
               summary={<Avatar author={profile} size={32} />}
             >
-              <div className="border-b border-[var(--hairline)] px-3 pb-2 pt-1.5">
-                <p className="truncate font-medium">{profile.display_name || profile.username}</p>
-                <p className="truncate text-xs text-muted">@{profile.username}</p>
-              </div>
-              <Link href={`/u/${profile.username}`} className="mt-1 block rounded-md px-3 py-2 hover:bg-surface-2">
-                Your projects
+              <Link
+                href={`/u/${profile.username}`}
+                className="flex items-center gap-3 rounded-md px-3 py-2.5 hover:bg-surface-2"
+              >
+                <Avatar author={profile} size={36} />
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{profile.display_name || profile.username}</span>
+                  <span className="block truncate font-mono text-xs text-muted">@{profile.username}</span>
+                </span>
               </Link>
-              <Link href="/settings" className="block rounded-md px-3 py-2 hover:bg-surface-2">
+
+              <div className="my-1 border-t border-border" />
+              <MenuLink href={`/u/${profile.username}`} icon={<UserIcon />}>
+                Your profile
+              </MenuLink>
+              <MenuLink href="/settings" icon={<SettingsIcon />}>
                 Settings
-              </Link>
+              </MenuLink>
+
+              <div className="my-1 border-t border-border" />
+              <ThemeToggle variant="menu" />
+              <VideoConsentToggle variant="menu" />
+
+              <div className="my-1 border-t border-border" />
               <form action={signOut}>
-                <button className="w-full rounded-md px-3 py-2 text-left text-muted hover:bg-surface-2 hover:text-text">
+                <button className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-muted hover:bg-surface-2 hover:text-text">
+                  <SignOutIcon />
                   Sign out
                 </button>
               </form>
@@ -62,5 +80,14 @@ export async function Header() {
         </nav>
       </div>
     </header>
+  );
+}
+
+function MenuLink({ href, icon, children }: { href: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <Link href={href} className="flex items-center gap-2.5 rounded-md px-3 py-2 hover:bg-surface-2">
+      <span className="text-muted">{icon}</span>
+      {children}
+    </Link>
   );
 }

@@ -17,8 +17,8 @@ export default function PrivacyPage() {
       <h2>What we collect</h2>
       <ul>
         <li>
-          <strong>Your account:</strong> your email address, which we use to sign you in, and the username, display name
-          and bio you choose.
+          <strong>Your account:</strong> your email address, which we use to sign you in, and the username, display name,
+          bio and profile photo you choose.
         </li>
         <li>
           <strong>What you post:</strong> projects, releases, uploaded files and cover images, video links, comments,
@@ -48,7 +48,7 @@ export default function PrivacyPage() {
 
       <h2>What other people can see</h2>
       <p>
-        Your username, display name, bio and everything you post are public, including your comments and &quot;works for
+        Your username, display name, bio, profile photo and everything you post are public, including your comments and &quot;works for
         me&quot; reports. Like and dislike totals are public, but which projects you liked or disliked is not shown to
         other people. Your email address and the tags and projects you follow are never shown to anyone else.
       </p>

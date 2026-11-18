@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { MoonIcon } from "@/components/Icons";
+import { MenuSwitch } from "@/components/MenuSwitch";
 
 const KEY = "forkyard-theme";
 const EVENT = "forkyard-theme-change";
@@ -15,7 +17,7 @@ function subscribe(onChange: () => void) {
 }
 
 /** Footer switch for the opt-in dark theme. Light (warm paper) is the default. */
-export function ThemeToggle() {
+export function ThemeToggle({ variant = "footer" }: { variant?: "footer" | "menu" }) {
   const dark = useSyncExternalStore<boolean | undefined>(subscribe, read, () => undefined);
   if (dark === undefined) return null;
 
@@ -31,6 +33,8 @@ export function ThemeToggle() {
     }
     window.dispatchEvent(new Event(EVENT));
   }
+
+  if (variant === "menu") return <MenuSwitch icon={<MoonIcon />} label="Dark mode" on={dark} onToggle={toggle} />;
 
   return (
     <button type="button" onClick={toggle} className="hover:text-text" aria-pressed={dark}>

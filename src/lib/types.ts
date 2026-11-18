@@ -74,6 +74,7 @@ export type Profile = {
   display_name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  avatar_path: string | null;
   created_at: string;
 };
 

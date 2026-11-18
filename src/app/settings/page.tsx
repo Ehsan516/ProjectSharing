@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import type { Profile } from "@/lib/types";
 import { safeRedirectPath } from "@/lib/utils";
+import { AvatarField } from "./AvatarField";
 import { DeleteAccountForm } from "./DeleteAccountForm";
 import { SettingsForm } from "./SettingsForm";
 
@@ -25,6 +26,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Sea
       <p className="mb-6 mt-1 text-sm text-muted">
         {welcome ? "This is how people will find you and your projects." : "Update your public profile."}
       </p>
+      <div className="mb-4">
+        <AvatarField profile={profile} />
+      </div>
       <SettingsForm profile={profile} welcome={welcome} next={next} />
 
       {!welcome && (

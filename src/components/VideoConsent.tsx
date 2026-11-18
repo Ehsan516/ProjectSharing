@@ -1,6 +1,8 @@
 "use client";
 
 import { setVideoConsent, useVideoConsent } from "@/lib/videoConsent";
+import { PlayCircleIcon } from "@/components/Icons";
+import { MenuSwitch } from "@/components/MenuSwitch";
 
 /** One-time question above a feed that has videos. Disappears once answered. */
 export function VideoConsentPrompt() {
@@ -35,10 +37,20 @@ export function VideoConsentPrompt() {
 }
 
 /** Footer switch so people can change their mind later. */
-export function VideoConsentToggle() {
+export function VideoConsentToggle({ variant = "footer" }: { variant?: "footer" | "menu" }) {
   const consent = useVideoConsent();
   if (consent === undefined) return null;
   const on = consent === "yes";
+  if (variant === "menu") {
+    return (
+      <MenuSwitch
+        icon={<PlayCircleIcon />}
+        label="Autoplay videos"
+        on={on}
+        onToggle={() => setVideoConsent(on ? "no" : "yes")}
+      />
+    );
+  }
 
   return (
     <button

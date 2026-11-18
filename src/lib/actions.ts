@@ -13,11 +13,12 @@ import { cleanUrl, parseTags, parseYouTubeId, safeRedirectPath, slugifyTag } fro
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const FILE_PATH = new RegExp(`^(${UUID})/(${UUID}[.]zip)$`);
 const COVER_PATH = new RegExp(`^(${UUID})/(${UUID}[.](?:png|jpg|webp|gif))$`);
+const AVATAR_PATH = new RegExp(`^(${UUID})/(${UUID}[.](?:webp|jpg|png))$`);
 
 /** Confirms an uploaded object exists in the user's folder and returns its real size. */
 async function findUpload(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  bucket: "files" | "covers",
+  bucket: "files" | "covers" | "avatars",
   path: string,
 ): Promise<number | null> {
   const [folder, name] = path.split("/");
@@ -469,7 +470,7 @@ export async function deleteAccount(_prev: ActionState, formData: FormData): Pro
   const admin = createAdminClient();
   if (!admin) return { error: "Account deletion isn't set up on this server yet. Email us and we'll delete it for you." };
 
-  for (const bucket of ["files", "covers"] as const) {
+  for (const bucket of ["files", "covers", "avatars"] as const) {
     for (;;) {
       const { data: objects, error } = await admin.storage.from(bucket).list(user.id, { limit: 100 });
       if (error) return { error: "Couldn't remove your files. Nothing was deleted, please try again." };
@@ -488,4 +489,31 @@ export async function deleteAccount(_prev: ActionState, formData: FormData): Pro
   await supabase.auth.signOut();
   revalidatePath("/", "layout");
   redirect("/?account=deleted");
+}
+
+/** Sets (or, with null, removes) the profile photo. The browser has already uploaded the file. */
+export async function updateAvatar(path: string | null): Promise<ActionState> {
+  const { supabase, user } = await requireUser("/settings");
+  const { data: current } = await supabase.from("profiles").select("avatar_path").eq("id", user.id).single();
+
+  let avatar_url: string | null = null;
+  if (path) {
+    const m = path.match(AVATAR_PATH);
+    if (!m || m[1] !== user.id) return { error: "That photo upload wasn't valid. Try again." };
+    if ((await findUpload(supabase, "avatars", path)) === null) {
+      return { error: "The photo didn't finish uploading. Try again." };
+    }
+    avatar_url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+  }
+
+  const { error } = await supabase.from("profiles").update({ avatar_path: path, avatar_url }).eq("id", user.id);
+  if (error) {
+    console.error("updateAvatar failed:", error.message);
+    return { error: "Couldn't save your photo. Try again." };
+  }
+  if (current?.avatar_path && current.avatar_path !== path) {
+    await supabase.storage.from("avatars").remove([current.avatar_path]);
+  }
+  revalidatePath("/", "layout");
+  return { ok: true };
 }

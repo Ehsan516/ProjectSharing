@@ -7,7 +7,7 @@ import { getBrowserClient } from "@/lib/supabase/client";
  * reporting progress. Storage policies only allow writing into the user's own folder.
  */
 export async function uploadWithProgress(
-  bucket: "files" | "covers",
+  bucket: "files" | "covers" | "avatars",
   path: string,
   file: File,
   contentType: string,

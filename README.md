@@ -12,7 +12,7 @@ Stack: Next.js 15 (App Router, server actions) + Supabase (Postgres, auth, stora
 
 1. **Create a Supabase project** at https://supabase.com.
 2. **Run the schema:** in the Supabase dashboard open *SQL Editor → New query*, then paste and run each file in
-   [`supabase/migrations/`](supabase/migrations/) in order (`0001_…` through `0005_…`). Skipping one breaks the feed, because the code reads
+   [`supabase/migrations/`](supabase/migrations/) in order (`0001_…` through `0006_…`). Skipping one breaks the feed, because the code reads
    columns the later migrations add.
 3. **Configure auth redirects:** *Authentication → URL Configuration*
    - Site URL: `http://localhost:3000` (your real domain later)
