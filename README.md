@@ -16,7 +16,11 @@ Stack: Next.js 15 (App Router, server actions) + Supabase (Postgres, auth, stora
    columns the later migrations add.
 3. **Configure auth redirects:** *Authentication → URL Configuration*
    - Site URL: `http://localhost:3000` (your real domain later)
-   - Redirect URLs: add `http://localhost:3000/auth/callback` (and `https://yourdomain.com/auth/callback` later)
+   - Redirect URLs: add `http://localhost:3000/**` (and `https://yourdomain.com/**` later). The wildcard lets
+     sign-in links return to any page, including the `?next=` page people were on. If Supabase rejects the redirect,
+     it falls back to the Site URL, and the middleware still finishes the sign-in from there.
+   - Optional: paste `supabase/templates/sign_in.html` into the "Magic link or OTP" and "Confirm sign up" templates
+     to add a 6-digit code and a link that works on any device. Sign-in works with the default emails too.
 4. **Env vars:** copy `.env.example` to `.env.local` and fill in the project URL and anon (or publishable) key
    from *Project Settings → API*.
 5. **Run it:**

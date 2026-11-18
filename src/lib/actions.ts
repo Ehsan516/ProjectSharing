@@ -77,11 +77,14 @@ export async function verifyEmailCode(_prev: ActionState, formData: FormData): P
   const email = text(formData, "email", 320);
   const token = text(formData, "code", 12).replace(/\s/g, "");
   const next = safeRedirectPath(String(formData.get("next") ?? ""));
-  if (!/^\d{6,10}$/.test(token)) return { error: "Enter the code from the email (digits only)." };
+  if (!/^\d{6,10}$/.test(token)) return { error: "Enter the code from the email. It's digits only." };
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "email" });
-  if (error || !data.user) return { error: error?.message ?? "That code didn't work. Request a new one." };
+  if (error || !data.user) {
+    console.error("verifyOtp failed:", error?.status, error?.code, error?.message);
+    return { error: "That code didn't work. It may have expired, so send a new email and try again." };
+  }
 
   revalidatePath("/", "layout");
   redirect(await postLoginPath(supabase, data.user.id, next));

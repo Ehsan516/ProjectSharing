@@ -1,18 +1,22 @@
 <!--
-  Paste this into BOTH of these Supabase email templates
-  (Dashboard -> Authentication -> Emails -> Templates):
-    - "Confirm signup"
-    - "Magic link"
-  The link works in any browser/device; the code can be typed on the sign-in page.
+  Optional: paste into BOTH Supabase email templates (Authentication -> Emails -> Templates):
+    - "Magic link or OTP"   (existing users signing in)
+    - "Confirm sign up"     (new accounts)
+  Subject suggestion: Your Forkyard sign-in code
+
+  The app works with Supabase's default emails too (link only). This template adds:
+    - a link that works on any device, not just the browser that asked for it (token_hash)
+    - a 6-digit code ({{ .Token }}) that can be typed on the sign-in page
+  {{ .SiteURL }} comes from Authentication -> URL Configuration -> Site URL, so set that to your real domain.
 -->
-<h2>Sign in to Forkyard</h2>
-<p>Click the button to sign in:</p>
+<h2 style="font-family:Arial,sans-serif;color:#191917">Sign in to Forkyard</h2>
+<p style="font-family:Arial,sans-serif;color:#191917">Tap the button to sign in:</p>
 <p>
   <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email"
-     style="display:inline-block;padding:10px 18px;background:#e8590c;color:#ffffff;border-radius:8px;text-decoration:none;font-weight:600">
+     style="display:inline-block;padding:10px 18px;background:#ff4f1a;color:#191917;border-radius:6px;text-decoration:none;font-family:Arial,sans-serif;font-weight:600">
     Sign in
   </a>
 </p>
-<p>Or enter this code on the sign-in page:</p>
-<p style="font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace">{{ .Token }}</p>
-<p style="color:#888;font-size:12px">If you didn't request this, you can ignore this email.</p>
+<p style="font-family:Arial,sans-serif;color:#191917">Or enter this code on the sign-in page:</p>
+<p style="font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace;color:#191917">{{ .Token }}</p>
+<p style="font-family:Arial,sans-serif;color:#6b6a64;font-size:12px">If you didn't request this, you can ignore this email.</p>

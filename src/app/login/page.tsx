@@ -19,10 +19,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
     <div className="mx-auto mt-10 max-w-sm">
       <div className="card p-6">
         <h1 className="text-xl font-bold">Sign in</h1>
-        <p className="mb-5 mt-1 text-sm text-muted">We&apos;ll email you a sign-in link and code. No password needed.</p>
+        <p className="mb-5 mt-1 text-sm text-muted">We&apos;ll email you a sign-in link. No password needed.</p>
         {sp.error && (
           <p className="mb-4 rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">
-            That sign-in link was invalid or expired. Request a new one below.
+            That sign-in link didn&apos;t work. Links expire after a while, can only be used once, and must be opened
+            in the same browser you requested them from. Request a new one below.
           </p>
         )}
         <LoginForm next={next} />
