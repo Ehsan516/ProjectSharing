@@ -3,7 +3,7 @@ import type { FeedTab } from "@/lib/queries";
 
 const LABELS: Record<FeedTab, string> = { foryou: "For you", new: "Latest", top: "Top" };
 
-/** Text tabs with a signal-orange underline on the active one. */
+/** Text tabs with a lilac underline on the active one. */
 export function FeedTabs({
   active,
   basePath,
@@ -21,7 +21,7 @@ export function FeedTabs({
           href={`${basePath}?tab=${tab}`}
           aria-current={tab === active ? "page" : undefined}
           className={`-mb-px border-b-2 pb-2.5 pt-1 font-medium transition ${
-            tab === active ? "border-signal text-text" : "border-transparent text-muted hover:text-text"
+            tab === active ? "border-accent text-text" : "border-transparent text-muted hover:text-text"
           }`}
         >
           {LABELS[tab]}

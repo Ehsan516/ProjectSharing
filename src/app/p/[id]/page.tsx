@@ -270,7 +270,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="font-mono font-semibold">v{r.version}</span>
                     {i === 0 && (
-                      <span className="eyebrow rounded bg-signal px-1.5 py-px !text-signal-fg">Latest</span>
+                      <span className="eyebrow rounded border border-text bg-signal px-1.5 py-px !text-signal-fg">Latest</span>
                     )}
                     <TimeAgo iso={r.created_at} className="text-xs text-muted" />
                     <WorksTally yes={r.works_yes} no={r.works_no} compact />

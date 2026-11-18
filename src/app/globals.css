@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /*
-  "Workshop" palette: warm paper, ink, and one signal orange.
-  - signal: the bright orange, only for fills (the main button, the logo, active states)
-  - accent: a deeper orange that's readable as text (links, highlights)
+  "Workshop" palette: warm paper, ink, and lilac.
+  - signal: the pastel lilac, only for large fills (main button, logo tile, selected states),
+    always with ink text and an ink outline so it holds its shape on paper
+  - accent: a deep lilac that's readable as text (links, focus rings, small marks)
   The content (thumbnails, videos) supplies the colour; the interface stays quiet.
 */
 :root {
@@ -16,11 +17,11 @@
   --hairline: rgba(25, 25, 23, 0.09);
   --text: #191917;
   --muted: #6b6a64;
-  --signal: #ff4f1a;
-  --signal-hover: #f0430f;
+  --signal: #c4b5ff;
+  --signal-hover: #b4a3ff;
   --signal-fg: #191917;
-  --accent: #b83a0b;
-  --accent-soft: #ffe3d8;
+  --accent: #4b32c3;
+  --accent-soft: #ece7ff;
   --good: #2b7a3f;
   --bad: #c4321c;
 }
@@ -36,11 +37,11 @@
   --hairline: rgba(255, 248, 235, 0.08);
   --text: #edeae3;
   --muted: #9c978c;
-  --signal: #ff6a3d;
-  --signal-hover: #ff7f57;
-  --signal-fg: #1a0a03;
-  --accent: #ff8a5c;
-  --accent-soft: #3a1e12;
+  --signal: #b9a8ff;
+  --signal-hover: #cabdff;
+  --signal-fg: #17132b;
+  --accent: #c4b5ff;
+  --accent-soft: #2a2347;
   --good: #6cc785;
   --bad: #ff7a5c;
 }
@@ -79,7 +80,7 @@ h3 {
 
 /* Keyboard users get a clear focus ring; mouse clicks don't show one. */
 :focus-visible {
-  outline: 2px solid var(--signal);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .input:focus-visible {
@@ -105,7 +106,7 @@ summary::-webkit-details-marker {
   @apply inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60;
 }
 @utility btn-primary {
-  @apply btn bg-signal text-signal-fg hover:bg-signal-hover;
+  @apply btn border border-text bg-signal text-signal-fg hover:bg-signal-hover;
 }
 @utility btn-ghost {
   @apply btn border border-border bg-surface text-text hover:border-border-strong hover:bg-surface-2;

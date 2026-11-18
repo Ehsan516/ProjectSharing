@@ -22,7 +22,7 @@ export function MenuSwitch({
       <span className="flex-1">{label}</span>
       <span
         aria-hidden
-        className={`relative h-4 w-7 shrink-0 rounded-full transition ${on ? "bg-signal" : "bg-border-strong"}`}
+        className={`relative h-4 w-7 shrink-0 rounded-full transition ${on ? "bg-accent" : "bg-border-strong"}`}
       >
         <span
           className={`absolute top-0.5 h-3 w-3 rounded-full bg-surface transition-all ${on ? "left-3.5" : "left-0.5"}`}

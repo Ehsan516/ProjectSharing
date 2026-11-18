@@ -9,7 +9,7 @@ const TILES = [
   { bg: "#d9b54a", fg: "#191917" },
   { bg: "#5b4a7a", fg: "#f8f7f4" },
   { bg: "#c9c3b6", fg: "#191917" },
-  { bg: "#1f1e1b", fg: "#ff6a3d" },
+  { bg: "#1f1e1b", fg: "#c4b5ff" },
 ];
 
 export function GeneratedCover({ seed, title }: { seed: string; title: string }) {

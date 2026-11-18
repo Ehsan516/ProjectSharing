@@ -150,7 +150,7 @@ export default async function ProfilePage({ params, searchParams }: { params: Pa
                   <li key={a.id} className="flex items-center gap-3 px-4 py-3 text-sm">
                     <span
                       aria-hidden
-                      className={`h-2 w-2 shrink-0 rounded-full ${isFirst ? "bg-signal" : "bg-border-strong"}`}
+                      className={`h-2 w-2 shrink-0 rounded-full ${isFirst ? "bg-accent" : "bg-border-strong"}`}
                     />
                     <span className="min-w-0 flex-1 truncate">
                       {isFirst ? "Posted " : "Published "}

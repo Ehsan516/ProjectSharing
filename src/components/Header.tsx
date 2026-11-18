@@ -5,7 +5,7 @@ import { signOut } from "@/lib/actions";
 import { SITE_NAME } from "@/lib/env";
 import { Avatar } from "@/components/Avatar";
 import { Dropdown } from "@/components/Dropdown";
-import { LogoMark } from "@/components/Logo";
+import { Wordmark } from "@/components/Logo";
 import { HeartIcon, SettingsIcon, SignOutIcon, UserIcon } from "@/components/Icons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { VideoConsentToggle } from "@/components/VideoConsent";
@@ -20,9 +20,8 @@ export async function Header() {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3">
-        <Link href="/" className="flex shrink-0 items-center gap-2" aria-label={`${SITE_NAME} home`}>
-          <LogoMark size={28} />
-          <span className="hidden font-display text-lg font-bold tracking-tight sm:inline">{SITE_NAME}</span>
+        <Link href="/" className="shrink-0 rounded-md" aria-label={`${SITE_NAME} home`}>
+          <Wordmark />
         </Link>
 
         <Suspense fallback={<div className="min-w-0 flex-1" />}>
