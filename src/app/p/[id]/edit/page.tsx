@@ -19,7 +19,7 @@ export default async function EditProjectPage({ params }: { params: Params }) {
 
   const { data } = await supabase
     .from("projects")
-    .select("author_id,title,summary,tags,link_url,source_url,youtube_id,works_on,body,cover_url")
+    .select("author_id,title,summary,tags,link_url,source_url,youtube_id,works_on,body,cover_url,authorship,original_creator,original_url,permission_confirmed")
     .eq("id", id)
     .maybeSingle();
   if (!data) notFound();

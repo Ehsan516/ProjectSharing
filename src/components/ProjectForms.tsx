@@ -82,11 +82,29 @@ export function WorksReportForm({
   );
 }
 
+const REPORT_KINDS = [
+  { value: "my_work", label: "This is my work, posted without my permission", hint: "Link to where you originally posted it, so we can check it's yours." },
+  { value: "malware", label: "Malware, or it harms devices or data", hint: "What did it do, and which file?" },
+  { value: "rom_or_piracy", label: "ROM, pirated or cracked software", hint: "What's in it that shouldn't be?" },
+  { value: "illegal", label: "Illegal or harmful content", hint: "What's wrong with it?" },
+  { value: "other", label: "Something else", hint: "What's wrong?" },
+] as const;
+
 export function ReportForm({ action }: { action: BoundAction }) {
   const [open, setOpen] = useState(false);
+  const [kind, setKind] = useState<(typeof REPORT_KINDS)[number]["value"]>("my_work");
   const [state, formAction] = useActionState(action, undefined);
+  const current = REPORT_KINDS.find((k) => k.value === kind)!;
 
-  if (state?.ok) return <p className="text-xs text-muted">Thanks, we&apos;ll take a look.</p>;
+  if (state?.ok) {
+    return (
+      <p className="text-xs text-muted">
+        {kind === "my_work"
+          ? "Thanks. Ownership claims are reviewed first, and we'll take it down if it's yours."
+          : "Thanks, we'll take a look."}
+      </p>
+    );
+  }
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className="text-xs text-muted hover:text-bad">
@@ -96,14 +114,23 @@ export function ReportForm({ action }: { action: BoundAction }) {
   }
   return (
     <form action={formAction} className="flex w-full flex-col gap-2">
-      <textarea
-        name="reason"
-        rows={2}
-        required
-        maxLength={1000}
-        placeholder="What's wrong? (malware, stolen work, copyrighted files, spam…)"
-        className="input"
-      />
+      <fieldset className="flex flex-col gap-1.5 text-sm">
+        <legend className="mb-1 text-xs font-medium text-muted">What&apos;s the problem?</legend>
+        {REPORT_KINDS.map((k) => (
+          <label key={k.value} className="flex items-start gap-2">
+            <input
+              type="radio"
+              name="kind"
+              value={k.value}
+              checked={kind === k.value}
+              onChange={() => setKind(k.value)}
+              className="mt-1 accent-[var(--accent)]"
+            />
+            <span>{k.label}</span>
+          </label>
+        ))}
+      </fieldset>
+      <textarea name="reason" rows={3} required maxLength={1000} placeholder={current.hint} className="input" />
       <FormMessage state={state} />
       <div className="flex gap-2">
         <SubmitButton className="btn-ghost text-bad">Send report</SubmitButton>

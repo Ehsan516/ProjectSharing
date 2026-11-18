@@ -124,11 +124,24 @@ async function verifyZip(
 
 const VERSION = /^[A-Za-z0-9][A-Za-z0-9._+\- ]{0,39}$/;
 
+const REPORT_KINDS = ["my_work", "malware", "rom_or_piracy", "illegal", "other"] as const;
+
+/** The database refuses a file that's already on Forkyard under someone else's account (see migration 0007). */
+function releaseErrorMessage(message: string): string {
+  const m = message.match(/duplicate_file:([^:]+):(.*)/);
+  if (!m) return message;
+  return `This exact file is already on Forkyard, in "${m[2]}" by @${m[1]}. If it's your work, open that project and report it as yours. If you're building on it, credit them and upload your changed version.`;
+}
+
 function readVersion(formData: FormData): string {
   return text(formData, "version", 40).replace(/^v(?=\d)/i, "");
 }
 
 type ProjectFields = {
+  authorship: "own" | "shared";
+  original_creator: string | null;
+  original_url: string | null;
+  permission_confirmed: boolean;
   title: string;
   summary: string;
   tags: string[];
@@ -158,7 +171,25 @@ function readProjectFields(formData: FormData): ProjectFields | { error: string 
   if (sourceRaw && !source_url) return { error: "Source link must be a valid http(s) URL." };
   if (youtubeRaw && !youtube_id) return { error: "That doesn't look like a YouTube video link." };
 
+  // Who made it. Sharing someone else's work needs credit, a link to the original, and permission.
+  const shared = formData.get("authorship") === "shared";
+  const original_creator = shared ? text(formData, "original_creator", 80) || null : null;
+  const originalRaw = shared ? text(formData, "original_url", 2000) : "";
+  const original_url = shared ? cleanUrl(originalRaw) : null;
+  const permission_confirmed = shared && formData.get("permission_confirmed") === "on";
+  if (shared) {
+    if (!original_creator) return { error: "Say who made it, so they get the credit." };
+    if (!original_url) return { error: "Link to where the original is posted, e.g. their GitHub or mod page." };
+    if (!permission_confirmed) {
+      return { error: "Only share someone else's work if they've said you can. Tick the box to confirm they have." };
+    }
+  }
+
   return {
+    authorship: shared ? "shared" : "own",
+    original_creator,
+    original_url,
+    permission_confirmed,
     title,
     summary,
     tags,
@@ -217,7 +248,7 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
     });
     if (releaseError) {
       await supabase.from("projects").delete().eq("id", data.id);
-      return { error: releaseError.message };
+      return { error: releaseErrorMessage(releaseError.message) };
     }
   }
 
@@ -308,7 +339,7 @@ export async function createRelease(projectId: string, _prev: ActionState, formD
   if (error) {
     if (zip.file_path) await supabase.storage.from("files").remove([zip.file_path]);
     if (error.code === "23505") return { error: `There's already a release called v${version}.` };
-    return { error: error.message };
+    return { error: releaseErrorMessage(error.message) };
   }
 
   revalidatePath("/", "layout");
@@ -424,8 +455,13 @@ export async function submitWorksReport(
 export async function reportProject(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   const { supabase, user } = await requireUser(`/p/${projectId}`);
   const reason = text(formData, "reason", 1000);
+  const kindRaw = String(formData.get("kind") ?? "other");
+  const kind = REPORT_KINDS.includes(kindRaw as (typeof REPORT_KINDS)[number]) ? kindRaw : "other";
   if (!reason) return { error: "Tell us what's wrong." };
-  const { error } = await supabase.from("reports").insert({ project_id: projectId, reporter_id: user.id, reason });
+  if (kind === "my_work" && reason.length < 15) {
+    return { error: "Link to where you originally posted it, so we can check it's yours." };
+  }
+  const { error } = await supabase.from("reports").insert({ project_id: projectId, reporter_id: user.id, reason, kind });
   if (error) return { error: error.message };
   return { ok: true };
 }

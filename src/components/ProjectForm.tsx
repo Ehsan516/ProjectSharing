@@ -19,6 +19,10 @@ const COVER_TYPES: Record<string, string> = {
 };
 
 export type ProjectFormValues = {
+  authorship: "own" | "shared";
+  original_creator: string | null;
+  original_url: string | null;
+  permission_confirmed: boolean;
   title: string;
   summary: string;
   tags: string[];
@@ -51,6 +55,7 @@ export function ProjectForm({
   const [tagsRaw, setTagsRaw] = useState(initial?.tags.join(", ") ?? "");
   const [youtubeRaw, setYoutubeRaw] = useState(initial?.youtube_id ? `https://youtu.be/${initial.youtube_id}` : "");
   const [removeCover, setRemoveCover] = useState(false);
+  const [shared, setShared] = useState(initial?.authorship === "shared");
   const [cover, setCover] = useState<File | null>(null);
   const [zip, setZip] = useState<File | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -115,6 +120,92 @@ export function ProjectForm({
 
   return (
     <form onSubmit={onSubmit} onKeyDown={blockEnterSubmit} className="flex flex-col gap-5">
+      <fieldset className="flex flex-col gap-3">
+        <legend className="label">Who made this? *</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label
+            className={`flex cursor-pointer items-start gap-2.5 rounded-md border p-3 text-sm ${!shared ? "border-text bg-surface" : "border-border"}`}
+          >
+            <input
+              type="radio"
+              name="authorship"
+              value="own"
+              checked={!shared}
+              onChange={() => setShared(false)}
+              className="mt-0.5 accent-[var(--accent)]"
+            />
+            <span>
+              <span className="font-medium">I made this</span>
+              <span className="block text-xs text-muted">It&apos;s my own work, or my own changes to something.</span>
+            </span>
+          </label>
+          <label
+            className={`flex cursor-pointer items-start gap-2.5 rounded-md border p-3 text-sm ${shared ? "border-text bg-surface" : "border-border"}`}
+          >
+            <input
+              type="radio"
+              name="authorship"
+              value="shared"
+              checked={shared}
+              onChange={() => setShared(true)}
+              className="mt-0.5 accent-[var(--accent)]"
+            />
+            <span>
+              <span className="font-medium">Sharing someone else&apos;s work</span>
+              <span className="block text-xs text-muted">They made it and said you can post it here.</span>
+            </span>
+          </label>
+        </div>
+
+        {shared && (
+          <div className="panel flex flex-col gap-4 p-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="original_creator" className="label">
+                  Made by *
+                </label>
+                <input
+                  id="original_creator"
+                  name="original_creator"
+                  required
+                  maxLength={80}
+                  defaultValue={initial?.original_creator ?? ""}
+                  className="input"
+                  placeholder="Their name or username"
+                />
+              </div>
+              <div>
+                <label htmlFor="original_url" className="label">
+                  Original link *
+                </label>
+                <input
+                  id="original_url"
+                  name="original_url"
+                  type="url"
+                  required
+                  defaultValue={initial?.original_url ?? ""}
+                  className="input"
+                  placeholder="https://…"
+                />
+              </div>
+            </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="permission_confirmed"
+                required
+                defaultChecked={initial?.permission_confirmed ?? false}
+                className="mt-0.5 accent-[var(--accent)]"
+              />
+              <span>
+                The creator has said I can share this here. Posting someone&apos;s work without permission gets it
+                taken down and counts as a strike against your account.
+              </span>
+            </label>
+          </div>
+        )}
+      </fieldset>
+
       <div>
         <label htmlFor="title" className="label">
           Title *

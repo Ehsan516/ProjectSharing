@@ -38,5 +38,9 @@ export async function GET(request: NextRequest) {
       deleted[bucket] += removed?.length ?? 0;
     }
   }
+  // Visitor fingerprints are only needed for the current day; keep two days, then delete them.
+  const cutoff = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+  await admin.from("project_visitors").delete().lt("day", cutoff);
+
   return NextResponse.json({ deleted });
 }

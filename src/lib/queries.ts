@@ -19,7 +19,7 @@ export const REPORT_AUTHOR_SELECT = "author:profiles!works_reports_user_id_fkey(
 export const LATEST_RELEASE_SELECT =
   "latest:project_releases!projects_latest_release_id_fkey(id,version,file_name,works_yes,works_no,created_at)";
 
-export const SUMMARY_SELECT = `id,title,summary,tags,cover_url,works_on,youtube_id,vote_count,like_count,dislike_count,comment_count,download_count,works_yes,works_no,created_at,activity_at,${PROJECT_AUTHOR_SELECT},${LATEST_RELEASE_SELECT}`;
+export const SUMMARY_SELECT = `id,title,summary,tags,authorship,original_creator,cover_url,works_on,youtube_id,vote_count,like_count,dislike_count,comment_count,download_count,works_yes,works_no,created_at,activity_at,${PROJECT_AUTHOR_SELECT},${LATEST_RELEASE_SELECT}`;
 
 export type FeedTab = "foryou" | "new" | "top";
 

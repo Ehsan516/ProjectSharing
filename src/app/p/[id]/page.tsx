@@ -24,6 +24,7 @@ import { FollowProjectButton } from "@/components/FollowProjectButton";
 import { DownloadIcon } from "@/components/Icons";
 import { MoreMenu } from "@/components/MoreMenu";
 import { ShareButton } from "@/components/ShareButton";
+import { ViewBeacon } from "@/components/ViewBeacon";
 import { TagChip } from "@/components/TagChip";
 import { TimeAgo } from "@/components/TimeAgo";
 import { VoteButton, type Reaction } from "@/components/VoteButton";
@@ -109,14 +110,33 @@ export default async function ProjectPage({ params }: { params: Params }) {
 
   return (
     <article className="mx-auto flex max-w-3xl flex-col gap-8">
+      <ViewBeacon projectId={project.id} />
       {/* Header: one idea, big and plain */}
       <header className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-bold leading-[1.05] tracking-tight sm:text-5xl">{project.title}</h1>
           <p className="mt-2 text-lg text-muted">{project.summary}</p>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
+            {project.authorship === "shared" && project.original_creator && (
+              <span className="text-text">
+                Made by{" "}
+                {project.original_url ? (
+                  <a
+                    href={project.original_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow ugc"
+                    className="font-medium underline decoration-border-strong underline-offset-2 hover:decoration-text"
+                  >
+                    {project.original_creator} ↗
+                  </a>
+                ) : (
+                  <span className="font-medium">{project.original_creator}</span>
+                )}
+              </span>
+            )}
             {project.author && (
               <Link href={`/u/${project.author.username}`} className="flex items-center gap-1.5 hover:text-text">
+                {project.authorship === "shared" && <span>shared by</span>}
                 <Avatar author={project.author} size={22} />
                 {displayName(project.author)}
               </Link>
@@ -182,6 +202,9 @@ export default async function ProjectPage({ params }: { params: Params }) {
               </Link>
               <Link href={`/p/${project.id}/edit`} className="link-action">
                 Edit post ›
+              </Link>
+              <Link href={`/p/${project.id}/traffic`} className="link-action">
+                Traffic ›
               </Link>
             </>
           ) : user ? (

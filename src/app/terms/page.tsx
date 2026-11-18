@@ -37,6 +37,21 @@ export default function TermsPage() {
         <li>Spam, or posts that misrepresent what a download does.</li>
       </ul>
 
+      <h2>Sharing someone else&apos;s work</h2>
+      <p>
+        You can post a project someone else made only if they&apos;ve said you can. When you do, choose &quot;Sharing
+        someone else&apos;s work&quot;, name the creator and link to where they posted it, so they get the credit. If
+        you changed someone else&apos;s project, credit the original in your description. If a creator tells us their
+        work was posted without permission, we&apos;ll take it down.
+      </p>
+
+      <h2>Repeat infringers</h2>
+      <p>
+        Each time we remove content because it infringed someone&apos;s rights, the account that posted it gets a strike.
+        We close accounts that get three strikes, and we may close an account sooner for deliberate or large-scale
+        infringement. Strikes are removed if a counter-notice is upheld.
+      </p>
+
       <h2>Your content</h2>
       <p>
         You keep ownership of what you post. You give us a worldwide, non-exclusive, royalty-free licence to host, copy,

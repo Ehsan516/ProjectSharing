@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ContactEmail, LegalPage } from "@/components/Legal";
+import { ContactEmail, LegalPage, Operator } from "@/components/Legal";
 import { SITE_NAME } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Contact and takedowns" };
@@ -16,6 +16,13 @@ export default function ContactPage() {
       <p>
         Open the project, choose the &quot;…&quot; menu, then <strong>Report</strong>. Or email us with the link and
         what&apos;s wrong. We review every report, and remove illegal content, malware and ROMs as quickly as we can.
+      </p>
+
+      <h2>Someone posted your work</h2>
+      <p>
+        Open the project, choose the &quot;…&quot; menu, then <strong>Report</strong>, and pick &quot;This is my work,
+        posted without my permission&quot;. Include a link to where you originally posted it. Ownership claims go to the
+        front of the queue. You can also send a formal copyright notice, below.
       </p>
 
       <h2>Copyright takedowns</h2>
@@ -36,7 +43,11 @@ export default function ContactPage() {
       </ul>
       <p>
         We&apos;ll remove the content and tell the person who posted it. If they believe the removal was a mistake, they
-        can reply with a counter-notice explaining why, and we&apos;ll pass it on to you.
+        can reply with a counter-notice explaining why, and we&apos;ll pass it on to you. Accounts that repeatedly post
+        infringing content are closed, as set out in our <Link href="/terms">terms</Link>.
+      </p>
+      <p>
+        Our designated agent for DMCA notices is <Operator />, reachable at <ContactEmail />.
       </p>
 
       <h2>Complaints and appeals</h2>

@@ -7,6 +7,9 @@ export type Author = {
 export type ProjectSummary = {
   id: string;
   title: string;
+  /** "own": the poster made it. "shared": someone else did, credited in original_creator. */
+  authorship: "own" | "shared";
+  original_creator: string | null;
   summary: string;
   tags: string[];
   cover_url: string | null;
@@ -44,6 +47,8 @@ export type Release = LatestRelease & {
 
 export type Project = ProjectSummary & {
   author_id: string;
+  original_url: string | null;
+  permission_confirmed: boolean;
   body: string | null;
   link_url: string | null;
   source_url: string | null;

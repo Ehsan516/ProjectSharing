@@ -56,11 +56,24 @@ export function ProjectCard({ project, reaction }: { project: ProjectSummary; re
 
         <div className="mt-auto flex flex-col gap-2.5 pt-3 text-xs text-muted">
           <div className="flex min-w-0 items-center gap-1.5">
-            {project.author && (
-              <Link href={`/u/${project.author.username}`} className="flex min-w-0 items-center gap-1.5 hover:text-text">
-                <Avatar author={project.author} size={18} />
-                <span className="truncate">{displayName(project.author)}</span>
-              </Link>
+            {project.authorship === "shared" && project.original_creator ? (
+              <span className="flex min-w-0 items-center gap-1" title={`Made by ${project.original_creator}, shared by ${displayName(project.author)}`}>
+                <span className="truncate">
+                  by <span className="font-medium text-text">{project.original_creator}</span>
+                </span>
+                {project.author && (
+                  <Link href={`/u/${project.author.username}`} className="shrink-0 hover:text-text">
+                    · shared by <Avatar author={project.author} size={14} />
+                  </Link>
+                )}
+              </span>
+            ) : (
+              project.author && (
+                <Link href={`/u/${project.author.username}`} className="flex min-w-0 items-center gap-1.5 hover:text-text">
+                  <Avatar author={project.author} size={18} />
+                  <span className="truncate">{displayName(project.author)}</span>
+                </Link>
+              )
             )}
             <span aria-hidden>·</span>
             {updated ? (

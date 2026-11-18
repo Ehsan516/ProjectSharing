@@ -30,12 +30,23 @@ export default function PrivacyPage() {
           details that our hosting providers record in their logs. We count downloads, but we don&apos;t record who
           downloaded what.
         </li>
+        <li>
+          <strong>Project traffic:</strong> when you open a project page we count the view, and note which site you
+          came from (for example TikTok or Google), so creators can see their project&apos;s traffic. To count unique
+          visitors without cookies, our server makes a one-way fingerprint from your IP address and browser that
+          changes every day. We never store your IP address, the fingerprint is deleted after two days, and creators
+          only ever see totals, never who visited.
+        </li>
       </ul>
 
       <h2>Why we use it</h2>
       <ul>
         <li>
           To run your account and show what you post. This is necessary to provide the service you signed up for.
+        </li>
+        <li>
+          To show creators how many people view and download their projects, and where those visitors came from. We
+          do this in our legitimate interests and theirs, using totals only.
         </li>
         <li>
           To keep {SITE_NAME} safe: reviewing reports, removing illegal or harmful content, and stopping spam and abuse.
