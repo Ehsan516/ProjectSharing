@@ -6,7 +6,7 @@ import { SITE_NAME } from "@/lib/env";
 import { Avatar } from "@/components/Avatar";
 import { Dropdown } from "@/components/Dropdown";
 import { LogoMark } from "@/components/Logo";
-import { SettingsIcon, SignOutIcon, UserIcon } from "@/components/Icons";
+import { HeartIcon, SettingsIcon, SignOutIcon, UserIcon } from "@/components/Icons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { VideoConsentToggle } from "@/components/VideoConsent";
 import { SearchBox } from "@/components/SearchBox";
@@ -55,6 +55,9 @@ export async function Header() {
               <div className="my-1 border-t border-border" />
               <MenuLink href={`/u/${profile.username}`} icon={<UserIcon />}>
                 Your profile
+              </MenuLink>
+              <MenuLink href="/following" icon={<HeartIcon />}>
+                Following
               </MenuLink>
               <MenuLink href="/settings" icon={<SettingsIcon />}>
                 Settings

@@ -95,3 +95,11 @@ export function SignOutIcon({ size = 16, className }: IconProps) {
     </svg>
   );
 }
+
+export function HeartIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 20s-7-4.4-9.2-9A5 5 0 0 1 12 6a5 5 0 0 1 9.2 5c-2.2 4.6-9.2 9-9.2 9Z" />
+    </svg>
+  );
+}

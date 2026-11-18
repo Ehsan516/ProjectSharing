@@ -7,30 +7,9 @@ import { getBrowserClient } from "@/lib/supabase/client";
 import { uploadWithProgress } from "@/lib/upload";
 import { Avatar } from "@/components/Avatar";
 import type { Author } from "@/lib/types";
+import { AvatarCropper } from "./AvatarCropper";
 
-const SIZE = 400;
 const MAX_INPUT_BYTES = 15 * 1024 * 1024;
-
-/** Centre-crops to a square and shrinks to 400x400, so uploads are small and every avatar is the same shape. */
-async function toSquareImage(file: File): Promise<{ blob: Blob; ext: "webp" | "jpg" }> {
-  const bitmap = await createImageBitmap(file);
-  const side = Math.min(bitmap.width, bitmap.height);
-  const canvas = document.createElement("canvas");
-  canvas.width = SIZE;
-  canvas.height = SIZE;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Your browser couldn't process that image.");
-  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, SIZE, SIZE);
-  bitmap.close();
-
-  const encode = (type: string) =>
-    new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.86));
-  const webp = await encode("image/webp");
-  if (webp && webp.type === "image/webp") return { blob: webp, ext: "webp" };
-  const jpg = await encode("image/jpeg"); // Safari before 17 can't encode WebP
-  if (!jpg) throw new Error("Your browser couldn't process that image.");
-  return { blob: jpg, ext: "jpg" };
-}
 
 export function AvatarField({ profile }: { profile: Author }) {
   const router = useRouter();
@@ -41,15 +20,20 @@ export function AvatarField({ profile }: { profile: Author }) {
   const [saving, startTransition] = useTransition();
   const busy = status !== null || saving;
 
-  async function pick(file: File | undefined) {
+  const [cropFile, setCropFile] = useState<File | null>(null);
+
+  function pick(file: File | undefined) {
+    if (inputRef.current) inputRef.current.value = "";
     if (!file) return;
     setError(null);
     if (!file.type.startsWith("image/")) return setError("Choose an image file, like a PNG or JPG.");
     if (file.size > MAX_INPUT_BYTES) return setError("That image is over 15 MB. Choose a smaller one.");
+    setCropFile(file);
+  }
 
+  async function save(blob: Blob, ext: "webp" | "jpg") {
+    setCropFile(null);
     try {
-      setStatus("Preparing photo…");
-      const { blob, ext } = await toSquareImage(file);
       const {
         data: { user },
       } = await getBrowserClient().auth.getUser();
@@ -68,8 +52,6 @@ export function AvatarField({ profile }: { profile: Author }) {
     } catch (err) {
       setStatus(null);
       setError(err instanceof Error ? err.message : "Upload failed. Try again.");
-    } finally {
-      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
@@ -113,9 +95,10 @@ export function AvatarField({ profile }: { profile: Author }) {
             {error}
           </p>
         ) : (
-          <p className="hint !mt-0">Square photos work best. We crop it to a square and shrink it for you.</p>
+          <p className="hint !mt-0">You can move, zoom and rotate it to fit the circle before saving.</p>
         )}
       </div>
+      {cropFile && <AvatarCropper file={cropFile} onCancel={() => setCropFile(null)} onConfirm={save} />}
     </section>
   );
 }
