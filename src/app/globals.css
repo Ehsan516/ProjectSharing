@@ -25,25 +25,24 @@
   --bad: #c4321c;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg: #141311;
-    --surface: #1c1b18;
-    --surface-2: #26241f;
-    --border: #34312b;
-    --border-strong: #4a463e;
-    --hairline: rgba(255, 248, 235, 0.08);
-    --text: #edeae3;
-    --muted: #9c978c;
-    --signal: #ff6a3d;
-    --signal-hover: #ff7f57;
-    --signal-fg: #1a0a03;
-    --accent: #ff8a5c;
-    --accent-soft: #3a1e12;
-    --good: #6cc785;
-    --bad: #ff7a5c;
-  }
+/* Light (warm paper) is the default for everyone. Dark is opt-in from the footer switch. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141311;
+  --surface: #1c1b18;
+  --surface-2: #26241f;
+  --border: #34312b;
+  --border-strong: #4a463e;
+  --hairline: rgba(255, 248, 235, 0.08);
+  --text: #edeae3;
+  --muted: #9c978c;
+  --signal: #ff6a3d;
+  --signal-hover: #ff7f57;
+  --signal-fg: #1a0a03;
+  --accent: #ff8a5c;
+  --accent-soft: #3a1e12;
+  --good: #6cc785;
+  --bad: #ff7a5c;
 }
 
 @theme inline {

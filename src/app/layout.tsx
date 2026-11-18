@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, IBM_Plex_Mono, Instrument_Sans } from "next/font/g
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { VideoConsentToggle } from "@/components/VideoConsent";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { env, LEGAL, SITE_NAME, SITE_TAGLINE } from "@/lib/env";
 import "./globals.css";
 
@@ -24,14 +25,21 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#edebe6" },
-    { media: "(prefers-color-scheme: dark)", color: "#141311" },
+    { media: "(prefers-color-scheme: dark)", color: "#edebe6" },
   ],
 };
 
+// Runs before the page paints, so people who chose dark mode never see a flash of light.
+const THEME_SCRIPT = `try{if(localStorage.getItem("forkyard-theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${body.variable} ${heading.variable} ${code.variable} font-sans antialiased`}>
+    // suppressHydrationWarning: the theme script below sets data-theme before React loads.
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
+      <body className={`${body.variable} ${heading.variable} ${code.variable} flex min-h-screen flex-col font-sans antialiased`}>
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-50 focus:rounded-md focus:bg-signal focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-signal-fg"
@@ -39,7 +47,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           Skip to content
         </a>
         <Header />
-        <main id="main" className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6">
+        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pb-16 pt-6">
           {children}
         </main>
         <footer className="border-t border-[var(--hairline)]">
@@ -58,6 +66,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 Contact and takedowns
               </Link>
               <VideoConsentToggle />
+              <ThemeToggle />
             </nav>
           </div>
         </footer>

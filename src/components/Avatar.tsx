@@ -18,7 +18,7 @@ export function Avatar({ author, size = 24 }: { author: Author | null; size?: nu
   return (
     <span
       aria-hidden
-      className="grid shrink-0 place-items-center rounded-full bg-accent-soft font-semibold uppercase text-accent"
+      className="grid shrink-0 place-items-center rounded-full bg-accent-soft font-display font-bold uppercase text-accent"
       style={{ width: size, height: size, fontSize: size * 0.45 }}
     >
       {label[0]}
