@@ -38,6 +38,11 @@ export function ProjectCard({ project, reaction }: { project: ProjectSummary; re
             v{latest.version}
           </span>
         )}
+        {(project.hidden_at || latest?.scan_status === "malicious") && (
+          <span className="pointer-events-none absolute right-3 top-3 z-10 rounded bg-bad px-1.5 py-px font-mono text-[11px] font-medium text-white">
+            {project.hidden_at ? "Hidden" : "Blocked"}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-1 p-4">
@@ -93,7 +98,7 @@ export function ProjectCard({ project, reaction }: { project: ProjectSummary; re
                 {yes}/{yes + no}
               </span>
             )}
-            {latest?.file_name && (
+            {(latest?.file_name || project.download_count > 0) && (
               <span
                 className="flex shrink-0 items-center gap-1"
                 title={`${project.download_count.toLocaleString()} ${project.download_count === 1 ? "download" : "downloads"}`}

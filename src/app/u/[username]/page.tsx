@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { reportProfile } from "@/lib/actions";
 import { getUser } from "@/lib/supabase/server";
 import { getFeed, getReactions, parsePage, type FeedTab } from "@/lib/queries";
 import type { Profile } from "@/lib/types";
 import { formatCount } from "@/lib/utils";
 import { Avatar } from "@/components/Avatar";
 import { FeedTabs } from "@/components/FeedTabs";
+import { MoreMenu } from "@/components/MoreMenu";
+import { ReportForm } from "@/components/ProjectForms";
 import { ProjectList } from "@/components/ProjectList";
 import { TagChip } from "@/components/TagChip";
 import { TimeAgo } from "@/components/TimeAgo";
@@ -35,20 +38,59 @@ export default async function ProfilePage({ params, searchParams }: { params: Pa
   const { supabase, user } = await getUser();
   const { data } = await supabase.from("profiles").select("*").eq("username", username).maybeSingle();
   const profile = data as Profile | null;
-  if (!profile) notFound();
+
+  if (!profile) {
+    const { data: hist } = await supabase
+      .from("username_history")
+      .select("user_id")
+      .eq("username", username)
+      .maybeSingle();
+    if (hist?.user_id) {
+      const { data: current } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", hist.user_id)
+        .maybeSingle();
+      if (current?.username) permanentRedirect(`/u/${current.username}`);
+    }
+    notFound();
+  }
+
+  const viewerRole = user
+    ? (await supabase.from("profiles").select("role,banned_at").eq("id", user.id).maybeSingle()).data
+    : null;
+  const isMod = !!viewerRole && !viewerRole.banned_at && (viewerRole.role === "moderator" || viewerRole.role === "admin");
+  const isMe = user?.id === profile.id;
+
+  if (profile.banned_at && !isMod && !isMe) {
+    return (
+      <div className="mx-auto mt-16 max-w-md text-center">
+        <h1 className="text-2xl font-bold">Account suspended</h1>
+        <p className="mt-2 text-sm text-muted">@{profile.username} is no longer available.</p>
+        <Link href="/" className="btn-primary mt-6">
+          Back to the feed
+        </Link>
+      </div>
+    );
+  }
 
   const [{ projects, hasMore }, { data: statRows }, { data: activityRows }] = await Promise.all([
-    getFeed(supabase, { tab, page, authorId: profile.id }),
-    supabase.from("projects").select("download_count,like_count,tags").eq("author_id", profile.id).limit(1000),
+    getFeed(supabase, { tab, page, authorId: profile.id, includeHidden: isMe || isMod }),
+    supabase
+      .from("projects")
+      .select("download_count,like_count,tags")
+      .eq("author_id", profile.id)
+      .is("hidden_at", null)
+      .limit(1000),
     supabase
       .from("project_releases")
-      .select("id,version,created_at,project:projects!project_releases_project_id_fkey!inner(id,title,created_at,author_id)")
+      .select("id,version,created_at,project:projects!project_releases_project_id_fkey!inner(id,title,created_at,author_id,hidden_at)")
       .eq("project.author_id", profile.id)
+      .is("project.hidden_at", null)
       .order("created_at", { ascending: false })
       .limit(8),
   ]);
   const reactions = await getReactions(supabase, user?.id, projects.map((p) => p.id));
-  const isMe = user?.id === profile.id;
 
   const rows = (statRows ?? []) as { download_count: number; like_count: number; tags: string[] }[];
   const stats = {
@@ -75,11 +117,28 @@ export default async function ProfilePage({ params, searchParams }: { params: Pa
           <div className="hidden lg:block">
             <Avatar author={profile} size={220} />
           </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold leading-tight">{name}</h1>
-            <p className="font-mono text-sm text-muted">@{profile.username}</p>
+          <div className="flex min-w-0 w-full items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-bold leading-tight">{name}</h1>
+              <p className="font-mono text-sm text-muted">@{profile.username}</p>
+            </div>
+            {user && !isMe && (
+              <MoreMenu label="Profile actions">
+                <ReportForm
+                  targetType="profile"
+                  action={reportProfile.bind(null, profile.id, profile.username)}
+                />
+              </MoreMenu>
+            )}
           </div>
         </div>
+
+        {(profile.banned_at || (profile.suspended_until && new Date(profile.suspended_until).getTime() > Date.now())) && (
+          <p className="rounded-md border border-bad/40 bg-bad/10 px-3 py-2 text-xs text-bad">
+            {profile.banned_at ? "Banned account" : "Currently suspended"}
+            {profile.ban_reason ? ` — ${profile.ban_reason}` : ""}
+          </p>
+        )}
 
         {profile.bio && <p className="whitespace-pre-wrap text-sm leading-relaxed">{profile.bio}</p>}
 

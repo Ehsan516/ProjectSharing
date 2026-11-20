@@ -103,3 +103,11 @@ export function HeartIcon({ size = 16, className }: IconProps) {
     </svg>
   );
 }
+
+export function ShieldIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M12 3 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-3Z" />
+    </svg>
+  );
+}

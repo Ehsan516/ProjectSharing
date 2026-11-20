@@ -12,7 +12,7 @@ Stack: Next.js 15 (App Router, server actions) + Supabase (Postgres, auth, stora
 
 1. **Create a Supabase project** at https://supabase.com.
 2. **Run the schema:** in the Supabase dashboard open *SQL Editor → New query*, then paste and run each file in
-   [`supabase/migrations/`](supabase/migrations/) in order (`0001_…` through `0008_…`). Skipping one breaks the feed, because the code reads
+   [`supabase/migrations/`](supabase/migrations/) in order (`0001_…` through `0010_…`). Skipping one breaks the feed, because the code reads
    columns the later migrations add.
 3. **Configure auth redirects:** *Authentication → URL Configuration*
    - Site URL: `http://localhost:3000` (your real domain later)
@@ -59,10 +59,13 @@ security. Vote, comment and works counters are kept in sync by triggers, and cli
   it with `curl -H "Authorization: Bearer $CRON_SECRET" https://yoursite/api/cron/cleanup`.
 - The 50 MB per-file limit comes from the Supabase free plan. Paid plans allow far larger files, which matters for big game mods.
 
-## Moderation
+## Moderation & Security
 
-- Users can report projects. Reports land in the `reports` table; review them in the Supabase Table Editor.
-- Zips are user uploads and are **not scanned**. Consider adding malware scanning (e.g. VirusTotal API) before launch.
+- Set your own account as an admin in Supabase SQL Editor (`update public.profiles set role = 'admin' where username = 'your_username';`) to unlock the **Moderation** dashboard at `/admin`.
+- Users can report projects, comments, and profiles. Reports land in `/admin` (prioritizing malware, illegal content, and ownership claims) and every decision is logged in `moderation_actions`.
+- Every uploaded `.zip` is inspected server-side (SHA-256 checksum, Zip-Slip & zip-bomb checks, forbidden ROM extension blocking, and executable file warnings).
+- Set `VIRUSTOTAL_API_KEY` (server-only) to automatically scan uploaded releases via VirusTotal and block malicious files from download; `/api/cron/cleanup` also polls pending scan results.
+- Write actions, sign-in requests, views, and downloads are rate-limited in Postgres via `check_rate_limit`, and downloads are deduplicated per visitor per day.
 - Before launch, publish a DMCA / takedown contact, and terms that ban ROMs, pirated software and malware.
 
 ## Legal pages and account deletion

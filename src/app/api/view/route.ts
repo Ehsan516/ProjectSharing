@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
+import { env } from "@/lib/env";
+import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rateLimit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUser } from "@/lib/supabase/server";
-import { env } from "@/lib/env";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BOTS = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsapp|discordbot|telegrambot|headless/i;
@@ -12,8 +13,17 @@ const BOTS = /bot|crawl|spider|slurp|preview|facebookexternalhit|embedly|whatsap
  * most bots never count). No cookies; the visitor fingerprint is a daily-rotating one-way hash.
  */
 export async function POST(request: NextRequest) {
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin") {
+    return new NextResponse(null, { status: 204 });
+  }
+
   const admin = createAdminClient();
   if (!admin) return new NextResponse(null, { status: 204 });
+
+  const ip = getClientIp(request.headers);
+  const allowed = await checkRateLimit(`view:${ip}`, RATE_LIMITS.apiView.limit, RATE_LIMITS.apiView.windowSeconds);
+  if (!allowed) return new NextResponse(null, { status: 204 });
 
   let body: { projectId?: unknown; referrer?: unknown; ref?: unknown };
   try {
@@ -34,7 +44,6 @@ export async function POST(request: NextRequest) {
     if (data?.author_id === user.id) return new NextResponse(null, { status: 204 });
   }
 
-  const ip = (request.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || request.headers.get("x-real-ip") || "";
   const salt = process.env.ANALYTICS_SALT || process.env.SUPABASE_SECRET_KEY || "";
   const day = new Date().toISOString().slice(0, 10);
   const visitor = createHash("sha256").update(`${salt}|${day}|${ip}|${ua}|${projectId}`).digest("hex");
@@ -51,8 +60,10 @@ export async function POST(request: NextRequest) {
 
 /** Turns ?ref= or the referring page into a readable source name. */
 function sourceName(ref: string, referrer: string, ownHost: string): string {
-  const tag = ref.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 30);
-  if (tag) return NAMED[tag] ?? tag;
+  const tag = ref.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 20);
+  if (tag && (NAMED[tag] || /^[a-z0-9_-]{2,20}$/.test(tag))) {
+    return NAMED[tag] ?? tag;
+  }
 
   let host = "";
   try {

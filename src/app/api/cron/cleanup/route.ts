@@ -1,8 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
+import { pollPendingScans } from "@/lib/scanner";
 
 /**
- * Deletes uploads that were never attached to a project or release (older than 24h).
+ * Deletes orphaned uploads (>24h), expires temporary visitor/download fingerprints (>2 days)
+ * and rate-limit buckets, and polls pending VirusTotal file scans.
  * Run daily: vercel.json schedules it on Vercel, or call it yourself with
  *   curl -H "Authorization: Bearer $CRON_SECRET" https://yoursite/api/cron/cleanup
  * Needs SUPABASE_SECRET_KEY and CRON_SECRET (server-only env vars, never NEXT_PUBLIC_).
@@ -38,9 +40,21 @@ export async function GET(request: NextRequest) {
       deleted[bucket] += removed?.length ?? 0;
     }
   }
-  // Visitor fingerprints are only needed for the current day; keep two days, then delete them.
-  const cutoff = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
-  await admin.from("project_visitors").delete().lt("day", cutoff);
 
-  return NextResponse.json({ deleted });
+  const cutoff = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
+  const nowIso = new Date().toISOString();
+
+  const [visitorsRes, downloadsRes, limitsRes, scans] = await Promise.all([
+    admin.from("project_visitors").delete().lt("day", cutoff),
+    admin.from("release_downloads").delete().lt("day", cutoff),
+    admin.from("rate_limits").delete().lt("reset_at", nowIso),
+    pollPendingScans(admin, 10),
+  ]);
+
+  const cleanupError = visitorsRes.error ?? downloadsRes.error ?? limitsRes.error;
+  if (cleanupError) {
+    return NextResponse.json({ error: cleanupError.message, deleted, scans }, { status: 500 });
+  }
+
+  return NextResponse.json({ deleted, scans });
 }

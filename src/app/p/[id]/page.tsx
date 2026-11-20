@@ -15,11 +15,14 @@ import {
   deleteComment,
   deleteProject,
   deleteRelease,
+  deleteWorksReport,
+  reportComment,
   reportProject,
   submitWorksReport,
   toggleFollowProject,
 } from "@/lib/actions";
 import { Avatar } from "@/components/Avatar";
+import { CopyButton } from "@/components/CopyButton";
 import { FollowProjectButton } from "@/components/FollowProjectButton";
 import { DownloadIcon } from "@/components/Icons";
 import { MoreMenu } from "@/components/MoreMenu";
@@ -58,6 +61,38 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   };
 }
 
+function ScanBadge({ release }: { release: Release }) {
+  if (release.scan_status === "clean") {
+    return (
+      <span className="rounded border border-good/40 bg-good/10 px-1.5 py-px font-mono text-[11px] text-good">
+        {release.scan_total > 0 ? `Clean (${release.scan_total} engines)` : "Scanned clean"}
+      </span>
+    );
+  }
+  if (release.scan_status === "pending") {
+    return (
+      <span className="rounded border border-border bg-surface-2 px-1.5 py-px font-mono text-[11px] text-muted">
+        Scan pending
+      </span>
+    );
+  }
+  if (release.scan_status === "flagged") {
+    return (
+      <span className="rounded border border-bad/40 bg-bad/10 px-1.5 py-px font-mono text-[11px] text-bad">
+        Flagged ({release.scan_positives}/{release.scan_total})
+      </span>
+    );
+  }
+  if (release.scan_status === "malicious") {
+    return (
+      <span className="rounded bg-bad px-1.5 py-px font-mono text-[11px] font-medium text-white">
+        Blocked (malware)
+      </span>
+    );
+  }
+  return null;
+}
+
 export default async function ProjectPage({ params }: { params: Params }) {
   const { id } = await params;
   const loaded = await loadProject(id);
@@ -72,6 +107,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
     { data: myReportRows },
     { data: vote },
     { data: follow },
+    { data: viewerProfile },
   ] = await Promise.all([
     supabase.from("project_releases").select(RELEASE_SELECT).eq("project_id", id).order("created_at", { ascending: false }),
     supabase
@@ -94,9 +130,17 @@ export default async function ProjectPage({ params }: { params: Params }) {
     user
       ? supabase.from("project_follows").select("project_id").eq("project_id", id).eq("user_id", user.id).maybeSingle()
       : Promise.resolve({ data: null }),
+    user
+      ? supabase.from("profiles").select("role,banned_at").eq("id", user.id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
-  const releases = (releaseRows ?? []) as Release[];
+  const isMod =
+    !!viewerProfile &&
+    !viewerProfile.banned_at &&
+    (viewerProfile.role === "moderator" || viewerProfile.role === "admin");
+
+  const releases = (releaseRows ?? []) as unknown as Release[];
   const latest = releases[0] ?? null;
   const versionOf = new Map(releases.map((r) => [r.id, r.version]));
   const comments = (commentRows ?? []) as unknown as Comment[];
@@ -104,13 +148,34 @@ export default async function ProjectPage({ params }: { params: Params }) {
   const myReports = (myReportRows ?? []) as { release_id: string | null; worked: boolean; setup: string | null }[];
 
   // Downloads go through /d/<id> so they're counted.
-  const downloadUrl = (r: Release) => (r.file_path ? `/d/${r.id}` : null);
+  const downloadUrl = (r: Release) => (r.file_path && r.scan_status !== "malicious" ? `/d/${r.id}` : null);
   const latestDownload = latest ? downloadUrl(latest) : null;
+  const latestBlocked = latest?.scan_status === "malicious";
+  const hasAnyDownload = project.download_count > 0 || releases.some((r) => !!r.file_path);
   const wasUpdated = releases.length > 1;
 
   return (
     <article className="mx-auto flex max-w-3xl flex-col gap-8">
       <ViewBeacon projectId={project.id} />
+
+      {project.hidden_at && (
+        <div role="status" className="rounded-lg border border-bad/40 bg-bad/10 p-4 text-sm text-bad">
+          <p className="font-semibold">This project is hidden from public feeds</p>
+          {project.hidden_reason && <p className="mt-1">Reason: {project.hidden_reason}</p>}
+          <p className="mt-2 text-xs">
+            {isMod ? (
+              <Link href="/admin?tab=hidden" className="underline">
+                Manage in Moderation dashboard
+              </Link>
+            ) : (
+              <Link href="/contact" className="underline">
+                Think this is a mistake? Contact us to appeal.
+              </Link>
+            )}
+          </p>
+        </div>
+      )}
+
       {/* Header: one idea, big and plain */}
       <header className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
@@ -166,7 +231,24 @@ export default async function ProjectPage({ params }: { params: Params }) {
       {/* One primary action; everything else is a quiet link */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-          {latest && latestDownload ? (
+          {latestBlocked ? (
+            <span className="rounded-md border border-bad/40 bg-bad/10 px-4 py-2 text-sm font-medium text-bad">
+              Download blocked by malware scanning
+              {latest.scan_report_url && (
+                <>
+                  {" · "}
+                  <a
+                    href={latest.scan_report_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="underline"
+                  >
+                    Report ↗
+                  </a>
+                </>
+              )}
+            </span>
+          ) : latest && latestDownload ? (
             <a href={latestDownload} className="btn-primary px-6 py-2.5 text-base" rel="nofollow">
               <DownloadIcon size={18} />
               Download v{latest.version}
@@ -235,12 +317,55 @@ export default async function ProjectPage({ params }: { params: Params }) {
                   Sign in to report this project
                 </Link>
               )}
+              {isMod && (
+                <Link href="/admin" className="border-t border-border pt-2 text-xs text-accent hover:underline">
+                  Open moderation dashboard ›
+                </Link>
+              )}
             </MoreMenu>
           </div>
         </div>
-        {(latestDownload || project.link_url) && (
+        {(latestDownload || project.link_url) && !latestBlocked && (
           <p className="text-xs text-muted">
-            Shared by users and not scanned. Check the source before running anything.
+            {latestDownload && latest?.scan_status === "clean" ? (
+              <>
+                <span className="font-medium text-good">Scanned clean</span>
+                {latest.scan_total > 0 && ` (${latest.scan_positives}/${latest.scan_total} detections)`}.{" "}
+                {latest.scan_report_url && (
+                  <>
+                    <a
+                      href={latest.scan_report_url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="text-accent hover:underline"
+                    >
+                      VirusTotal report ↗
+                    </a>
+                    .{" "}
+                  </>
+                )}
+                Check the source before running anything.
+              </>
+            ) : latestDownload && latest?.scan_status === "flagged" ? (
+              <span className="text-bad">
+                Warning: flagged by {latest.scan_positives}/{latest.scan_total} scanners.{" "}
+                {latest.scan_report_url && (
+                  <a
+                    href={latest.scan_report_url}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="underline"
+                  >
+                    View scan report ↗
+                  </a>
+                )}{" "}
+                Inspect the files and source carefully before running.
+              </span>
+            ) : latestDownload && latest?.scan_status === "pending" ? (
+              <>Antivirus scan is in progress. Check the source before running anything.</>
+            ) : (
+              <>Shared by users and not scanned. Check the source before running anything.</>
+            )}
           </p>
         )}
       </div>
@@ -248,7 +373,11 @@ export default async function ProjectPage({ params }: { params: Params }) {
       {/* At a glance */}
       <dl className="panel grid grid-cols-2 gap-x-6 gap-y-4 p-5 sm:grid-cols-4">
         <Stat label="Version" value={latest ? `v${latest.version}` : "None yet"} mono={!!latest} />
-        <Stat label="Downloads" value={latest?.file_name ? project.download_count.toLocaleString() : "No file"} mono={!!latest?.file_name} />
+        <Stat
+          label="Downloads"
+          value={hasAnyDownload ? project.download_count.toLocaleString() : "No file"}
+          mono={hasAnyDownload}
+        />
         <div className="col-span-2">
           <dt className="eyebrow">{latest ? `Works on v${latest.version}?` : "Works for people?"}</dt>
           <dd className="mt-1 text-sm font-medium">
@@ -288,6 +417,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
           <ol className="panel flex flex-col divide-y divide-[var(--hairline)]">
             {releases.map((r, i) => {
               const url = downloadUrl(r);
+              const manifest = r.file_manifest;
               return (
                 <li key={r.id} className="p-4">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -295,6 +425,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
                     {i === 0 && (
                       <span className="eyebrow rounded border border-text bg-signal px-1.5 py-px !text-signal-fg">Latest</span>
                     )}
+                    <ScanBadge release={r} />
                     <TimeAgo iso={r.created_at} className="text-xs text-muted" />
                     <WorksTally yes={r.works_yes} no={r.works_no} compact />
                     {r.file_path && (
@@ -303,10 +434,14 @@ export default async function ProjectPage({ params }: { params: Params }) {
                       </span>
                     )}
                     <span className="ml-auto flex items-center gap-3">
-                      {url && (
-                        <a href={url} rel="nofollow" className="text-sm font-medium text-accent hover:underline">
-                          ⬇ .zip{r.file_size ? ` · ${formatBytes(r.file_size)}` : ""}
-                        </a>
+                      {r.scan_status === "malicious" ? (
+                        <span className="text-xs font-medium text-bad">Blocked</span>
+                      ) : (
+                        url && (
+                          <a href={url} rel="nofollow" className="text-sm font-medium text-accent hover:underline">
+                            ⬇ .zip{r.file_size ? ` · ${formatBytes(r.file_size)}` : ""}
+                          </a>
+                        )
                       )}
                       {isOwner && (
                         <ConfirmButton
@@ -320,6 +455,55 @@ export default async function ProjectPage({ params }: { params: Params }) {
                   </div>
                   {r.works_on && <p className="mt-1 text-xs text-muted">Tested on: {r.works_on}</p>}
                   {r.changelog && <p className="mt-2 whitespace-pre-wrap break-words text-sm">{r.changelog}</p>}
+                  {(manifest || r.file_sha256) && (
+                    <details className="mt-2.5 text-xs text-muted">
+                      <summary className="cursor-pointer select-none font-medium text-accent hover:underline">
+                        Inspect files
+                        {manifest
+                          ? ` (${manifest.file_count} ${manifest.file_count === 1 ? "file" : "files"} · ${formatBytes(manifest.total_uncompressed)})`
+                          : ""}
+                      </summary>
+                      <div className="mt-2 flex flex-col gap-2 rounded-md border border-border bg-surface p-3 text-text">
+                        {manifest && manifest.warnings.length > 0 && (
+                          <p className="rounded border border-bad/30 bg-bad/10 px-2.5 py-1.5 text-xs text-bad">
+                            {manifest.warnings.join(" · ")}
+                          </p>
+                        )}
+                        {r.file_sha256 && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="eyebrow">SHA-256</span>
+                            <code className="break-all font-mono text-[11px] text-muted">{r.file_sha256}</code>
+                            <CopyButton text={r.file_sha256} label="Copy" />
+                            {r.scan_report_url && (
+                              <a
+                                href={r.scan_report_url}
+                                target="_blank"
+                                rel="noopener noreferrer nofollow"
+                                className="ml-auto text-accent hover:underline"
+                              >
+                                VirusTotal ↗
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {manifest && manifest.entries.length > 0 && (
+                          <ul className="max-h-48 overflow-y-auto divide-y divide-[var(--hairline)] border-t border-border pt-1 font-mono text-[11px]">
+                            {manifest.entries.map((entry) => (
+                              <li key={entry.name} className="flex items-center justify-between gap-4 py-1">
+                                <span className="min-w-0 break-all">{entry.name}</span>
+                                <span className="shrink-0 text-muted">{formatBytes(entry.size)}</span>
+                              </li>
+                            ))}
+                            {manifest.file_count > manifest.entries.length && (
+                              <li className="py-1 text-muted">
+                                Showing first {manifest.entries.length} of {manifest.file_count} files
+                              </li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                    </details>
+                  )}
                 </li>
               );
             })}
@@ -336,6 +520,7 @@ export default async function ProjectPage({ params }: { params: Params }) {
           ) : (
             <WorksReportForm
               action={submitWorksReport.bind(null, project.id)}
+              deleteAction={deleteWorksReport.bind(null, project.id)}
               releases={releases.map((r) => ({ id: r.id, version: r.version }))}
               myReports={myReports}
             />
@@ -351,15 +536,21 @@ export default async function ProjectPage({ params }: { params: Params }) {
         {reports.length > 0 && (
           <ul className="flex flex-col gap-2 text-sm">
             {reports.map((r) => (
-              <li key={`${r.user_id}-${r.release_id}`} className="flex min-w-0 items-center gap-2">
+              <li key={`${r.user_id}-${r.release_id}`} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <span className={r.worked ? "text-good" : "text-bad"}>{r.worked ? "✓" : "✗"}</span>
-                <span className="shrink-0 font-medium">{displayName(r.author)}</span>
+                {r.author ? (
+                  <Link href={`/u/${r.author.username}`} className="shrink-0 font-medium hover:text-accent hover:underline">
+                    {displayName(r.author)}
+                  </Link>
+                ) : (
+                  <span className="shrink-0 font-medium">deleted user</span>
+                )}
                 {r.release_id && versionOf.has(r.release_id) && (
                   <span className="shrink-0 rounded bg-surface-2 px-1.5 font-mono text-xs text-muted">
                     v{versionOf.get(r.release_id)}
                   </span>
                 )}
-                {r.setup && <span className="truncate text-muted">{r.setup}</span>}
+                {r.setup && <span className="break-words text-muted">{r.setup}</span>}
               </li>
             ))}
           </ul>
@@ -376,29 +567,42 @@ export default async function ProjectPage({ params }: { params: Params }) {
         {comments.length === 0 && (
           <p className="text-sm text-muted">No comments yet. Questions, bug reports and thanks all welcome.</p>
         )}
-        {comments.map((c) => (
-          <div key={c.id} className="flex gap-3">
-            <Avatar author={c.author} size={28} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-xs text-muted">
-                {c.author ? (
-                  <Link href={`/u/${c.author.username}`} className="font-medium text-text hover:text-accent">
-                    {displayName(c.author)}
-                  </Link>
-                ) : (
-                  <span>deleted user</span>
-                )}
-                <TimeAgo iso={c.created_at} />
-                {user?.id === c.author_id && (
-                  <ConfirmButton action={deleteComment.bind(null, project.id, c.id)} confirmText="Delete this comment?">
-                    Delete
-                  </ConfirmButton>
+        {comments.map((c) => {
+          const canDelete = user?.id === c.author_id || isOwner || isMod;
+          const canReport = !!user && user.id !== c.author_id;
+          return (
+            <div key={c.id} className="flex gap-3">
+              <Avatar author={c.author} size={28} />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+                  {c.author ? (
+                    <Link href={`/u/${c.author.username}`} className="font-medium text-text hover:text-accent">
+                      {displayName(c.author)}
+                    </Link>
+                  ) : (
+                    <span>deleted user</span>
+                  )}
+                  <TimeAgo iso={c.created_at} />
+                  {canDelete && (
+                    <ConfirmButton action={deleteComment.bind(null, project.id, c.id)} confirmText="Delete this comment?">
+                      Delete
+                    </ConfirmButton>
+                  )}
+                </div>
+                <p className="mt-1 whitespace-pre-wrap break-words text-sm">{c.body}</p>
+                {canReport && (
+                  <div className="mt-1">
+                    <ReportForm
+                      targetType="comment"
+                      action={reportComment.bind(null, project.id, c.id)}
+                      buttonClassName="text-[11px] text-muted hover:text-bad"
+                    />
+                  </div>
                 )}
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words text-sm">{c.body}</p>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {user ? (
           <CommentForm action={addComment.bind(null, project.id)} />
         ) : (
@@ -410,7 +614,6 @@ export default async function ProjectPage({ params }: { params: Params }) {
           </p>
         )}
       </section>
-
     </article>
   );
 }

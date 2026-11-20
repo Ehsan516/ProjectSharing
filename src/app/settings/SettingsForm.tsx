@@ -29,7 +29,7 @@ export function SettingsForm({ profile, welcome, next }: { profile: Profile; wel
             minLength={3}
             maxLength={24}
             pattern="[a-z0-9_]{3,24}"
-            defaultValue={profile.username.startsWith("user_") ? "" : profile.username}
+            defaultValue={welcome && profile.username.startsWith("user_") ? "" : profile.username}
             placeholder="your_name"
             className="input"
           />

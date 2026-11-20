@@ -6,7 +6,7 @@ import { SITE_NAME } from "@/lib/env";
 import { Avatar } from "@/components/Avatar";
 import { Dropdown } from "@/components/Dropdown";
 import { Wordmark } from "@/components/Logo";
-import { HeartIcon, SettingsIcon, SignOutIcon, UserIcon } from "@/components/Icons";
+import { HeartIcon, SettingsIcon, ShieldIcon, SignOutIcon, UserIcon } from "@/components/Icons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { VideoConsentToggle } from "@/components/VideoConsent";
 import { SearchBox } from "@/components/SearchBox";
@@ -14,8 +14,19 @@ import { SearchBox } from "@/components/SearchBox";
 export async function Header() {
   const { supabase, user } = await getUser();
   const profile = user
-    ? (await supabase.from("profiles").select("username,display_name,avatar_url").eq("id", user.id).single()).data
+    ? (
+        await supabase
+          .from("profiles")
+          .select("username,display_name,avatar_url,role,suspended_until,banned_at,ban_reason")
+          .eq("id", user.id)
+          .single()
+      ).data
     : null;
+
+  const isMod = !!profile && !profile.banned_at && (profile.role === "moderator" || profile.role === "admin");
+  const isSuspended =
+    !!profile?.suspended_until && new Date(profile.suspended_until).getTime() > Date.now();
+  const isBanned = !!profile?.banned_at;
 
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur-md">
@@ -61,6 +72,11 @@ export async function Header() {
               <MenuLink href="/settings" icon={<SettingsIcon />}>
                 Settings
               </MenuLink>
+              {isMod && (
+                <MenuLink href="/admin" icon={<ShieldIcon />}>
+                  Moderation
+                </MenuLink>
+              )}
 
               <div className="my-1 border-t border-border" />
               <ThemeToggle variant="menu" />
@@ -81,6 +97,20 @@ export async function Header() {
           )}
         </nav>
       </div>
+      {(isBanned || isSuspended) && (
+        <div role="status" className="border-t border-bad/30 bg-bad/10 px-4 py-2 text-xs text-bad">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2">
+            <span>
+              {isBanned
+                ? `Your account is banned from posting or interacting${profile?.ban_reason ? `: ${profile.ban_reason}` : "."}`
+                : `Your account is suspended until ${new Date(profile!.suspended_until!).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}${profile?.ban_reason ? `: ${profile.ban_reason}` : "."}`}
+            </span>
+            <Link href="/contact" className="font-medium underline">
+              Appeal or contact us
+            </Link>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

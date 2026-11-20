@@ -26,14 +26,17 @@ export function CommentForm({ action }: { action: BoundAction }) {
 
 export function WorksReportForm({
   action,
+  deleteAction,
   releases,
   myReports,
 }: {
   action: BoundAction;
+  deleteAction?: (releaseId: string | null) => Promise<void>;
   releases: { id: string; version: string }[]; // newest first
   myReports: { release_id: string | null; worked: boolean; setup: string | null }[];
 }) {
   const [state, formAction] = useActionState(action, undefined);
+  const [deleting, startDelete] = useTransition();
   const [releaseId, setReleaseId] = useState(releases[0]?.id ?? "");
   const existing = myReports.find((r) => (r.release_id ?? "") === releaseId) ?? null;
 
@@ -66,15 +69,29 @@ export function WorksReportForm({
           <input type="radio" name="worked" value="no" defaultChecked={existing?.worked === false} /> No
         </label>
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <input
           name="setup"
           maxLength={200}
           defaultValue={existing?.setup ?? ""}
           placeholder="Your setup (device, version, OS…)"
-          className="input"
+          className="input min-w-[200px] flex-1"
         />
         <SubmitButton className="btn-ghost shrink-0">{existing ? "Update" : "Submit"}</SubmitButton>
+        {existing && deleteAction && (
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => {
+              if (confirm("Remove your works-for-me report?")) {
+                startDelete(() => deleteAction(releaseId || null));
+              }
+            }}
+            className="btn-ghost shrink-0 text-bad"
+          >
+            {deleting ? "Removing…" : "Remove"}
+          </button>
+        )}
       </div>
       <FormMessage state={state} />
       {state?.ok && <p className="text-sm text-good">Thanks, your report is in.</p>}
@@ -82,19 +99,75 @@ export function WorksReportForm({
   );
 }
 
-const REPORT_KINDS = [
-  { value: "my_work", label: "This is my work, posted without my permission", hint: "Link to where you originally posted it, so we can check it's yours." },
-  { value: "malware", label: "Malware, or it harms devices or data", hint: "What did it do, and which file?" },
-  { value: "rom_or_piracy", label: "ROM, pirated or cracked software", hint: "What's in it that shouldn't be?" },
-  { value: "illegal", label: "Illegal or harmful content", hint: "What's wrong with it?" },
-  { value: "other", label: "Something else", hint: "What's wrong?" },
+type ReportTarget = "project" | "comment" | "profile";
+
+const ALL_REPORT_KINDS = [
+  {
+    value: "my_work",
+    targets: ["project"] as ReportTarget[],
+    label: "This is my work, posted without my permission",
+    hint: "Link to where you originally posted it, so we can check it's yours.",
+  },
+  {
+    value: "malware",
+    targets: ["project"] as ReportTarget[],
+    label: "Malware, or it harms devices or data",
+    hint: "What did it do, and which file?",
+  },
+  {
+    value: "rom_or_piracy",
+    targets: ["project"] as ReportTarget[],
+    label: "ROM, pirated or cracked software",
+    hint: "What's in it that shouldn't be?",
+  },
+  {
+    value: "impersonation",
+    targets: ["profile"] as ReportTarget[],
+    label: "Impersonating someone else",
+    hint: "Who are they impersonating, and what's their real account?",
+  },
+  {
+    value: "harassment",
+    targets: ["comment", "profile"] as ReportTarget[],
+    label: "Harassment, hate or personal info",
+    hint: "Tell us what happened.",
+  },
+  {
+    value: "spam",
+    targets: ["project", "comment", "profile"] as ReportTarget[],
+    label: "Spam or scam",
+    hint: "Tell us what's spammy or misleading.",
+  },
+  {
+    value: "illegal",
+    targets: ["project", "comment", "profile"] as ReportTarget[],
+    label: "Illegal or harmful content",
+    hint: "What's wrong with it?",
+  },
+  {
+    value: "other",
+    targets: ["project", "comment", "profile"] as ReportTarget[],
+    label: "Something else",
+    hint: "What's wrong?",
+  },
 ] as const;
 
-export function ReportForm({ action }: { action: BoundAction }) {
+export function ReportForm({
+  action,
+  targetType = "project",
+  buttonLabel = "Report",
+  buttonClassName = "text-xs text-muted hover:text-bad",
+}: {
+  action: BoundAction;
+  targetType?: ReportTarget;
+  buttonLabel?: string;
+  buttonClassName?: string;
+}) {
+  const kinds = ALL_REPORT_KINDS.filter((k) => k.targets.includes(targetType));
   const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<(typeof REPORT_KINDS)[number]["value"]>("my_work");
+  const [kind, setKind] = useState<string>(kinds[0].value);
   const [state, formAction] = useActionState(action, undefined);
-  const current = REPORT_KINDS.find((k) => k.value === kind)!;
+  const current = kinds.find((k) => k.value === kind) ?? kinds[0];
 
   if (state?.ok) {
     return (
@@ -107,8 +180,8 @@ export function ReportForm({ action }: { action: BoundAction }) {
   }
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-xs text-muted hover:text-bad">
-        Report
+      <button type="button" onClick={() => setOpen(true)} className={buttonClassName}>
+        {buttonLabel}
       </button>
     );
   }
@@ -116,7 +189,7 @@ export function ReportForm({ action }: { action: BoundAction }) {
     <form action={formAction} className="flex w-full flex-col gap-2">
       <fieldset className="flex flex-col gap-1.5 text-sm">
         <legend className="mb-1 text-xs font-medium text-muted">What&apos;s the problem?</legend>
-        {REPORT_KINDS.map((k) => (
+        {kinds.map((k) => (
           <label key={k.value} className="flex items-start gap-2">
             <input
               type="radio"

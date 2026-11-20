@@ -17,14 +17,14 @@ export const REPORT_AUTHOR_SELECT = "author:profiles!works_reports_user_id_fkey(
 
 // projects <-> project_releases are also linked twice (release.project_id and projects.latest_release_id).
 export const LATEST_RELEASE_SELECT =
-  "latest:project_releases!projects_latest_release_id_fkey(id,version,file_name,works_yes,works_no,created_at)";
+  "latest:project_releases!projects_latest_release_id_fkey(id,version,file_name,works_yes,works_no,scan_status,created_at)";
 
-export const SUMMARY_SELECT = `id,title,summary,tags,authorship,original_creator,cover_url,works_on,youtube_id,vote_count,like_count,dislike_count,comment_count,download_count,works_yes,works_no,created_at,activity_at,${PROJECT_AUTHOR_SELECT},${LATEST_RELEASE_SELECT}`;
+export const SUMMARY_SELECT = `id,title,summary,tags,authorship,original_creator,cover_url,works_on,youtube_id,vote_count,like_count,dislike_count,comment_count,download_count,works_yes,works_no,hidden_at,created_at,activity_at,${PROJECT_AUTHOR_SELECT},${LATEST_RELEASE_SELECT}`;
 
 export type FeedTab = "foryou" | "new" | "top";
 
 export const RELEASE_SELECT =
-  "id,version,changelog,works_on,file_path,file_name,file_size,download_count,works_yes,works_no,created_at";
+  "id,version,changelog,works_on,file_path,file_name,file_size,file_sha256,file_manifest,scan_status,scan_engine,scan_positives,scan_total,scan_report_url,scanned_at,download_count,works_yes,works_no,created_at";
 
 /** Supabase returns embedded one-to-one relations as an object, but types them loosely. */
 export function asSummaries(rows: unknown): ProjectSummary[] {
@@ -67,12 +67,14 @@ export async function getFeed(
     followedProjectIds?: string[];
     tag?: string;
     authorId?: string;
+    includeHidden?: boolean;
   },
 ): Promise<{ projects: ProjectSummary[]; hasMore: boolean }> {
   // "Load more" grows the list: page N shows items 0..(N+1)*PAGE_SIZE.
   const limit = (opts.page + 1) * PAGE_SIZE;
   let query = supabase.from("projects").select(SUMMARY_SELECT);
 
+  if (!opts.includeHidden) query = query.is("hidden_at", null);
   if (opts.tag) query = query.contains("tags", [opts.tag]);
   if (opts.authorId) query = query.eq("author_id", opts.authorId);
   if (opts.tab === "foryou") {

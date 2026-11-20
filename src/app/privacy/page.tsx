@@ -27,7 +27,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Technical data:</strong> the cookies that keep you signed in, and the IP address, browser and device
-          details that our hosting providers record in their logs. We count downloads, but we don&apos;t record who
+          details that our hosting providers record in their logs. Downloads are deduplicated and counted daily using
+          the same short-lived, cookie-free fingerprint (deleted after two days); we don&apos;t keep a history of who
           downloaded what.
         </li>
         <li>
@@ -70,6 +71,7 @@ export default function PrivacyPage() {
         <li>Supabase, for our database, sign-in and file storage.</li>
         <li>Vercel, for hosting the website.</li>
         <li>Our email delivery provider, to send sign-in emails.</li>
+        <li>VirusTotal (when enabled), to scan uploaded release archives and SHA-256 hashes for malware.</li>
       </ul>
       <p id="videos">
         Project videos are hosted on YouTube (Google). Until you choose to watch, we only show the video&apos;s thumbnail

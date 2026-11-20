@@ -7,10 +7,16 @@ import { createClient, getUser } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { env } from "@/lib/env";
 import { postLoginPath } from "@/lib/auth";
-import type { ActionState } from "@/lib/types";
+import { getAccountRestriction } from "@/lib/moderation";
+import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rateLimit";
+import { isReservedUsername } from "@/lib/reservedUsernames";
+import { scanFileWithVirusTotal, type ScanResult } from "@/lib/scanner";
+import type { ActionState, ZipManifest } from "@/lib/types";
 import { cleanUrl, parseTags, parseYouTubeId, safeRedirectPath, slugifyTag } from "@/lib/utils";
+import { inspectZipBuffer } from "@/lib/zipInspect";
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+const UUID_RE = new RegExp(`^${UUID}$`, "i");
 const FILE_PATH = new RegExp(`^(${UUID})/(${UUID}[.]zip)$`);
 const COVER_PATH = new RegExp(`^(${UUID})/(${UUID}[.](?:png|jpg|webp|gif))$`);
 const AVATAR_PATH = new RegExp(`^(${UUID})/(${UUID}[.](?:webp|jpg|png))$`);
@@ -37,6 +43,30 @@ async function requireUser(next = "/") {
   return { supabase, user };
 }
 
+async function requireActiveUser(next = "/"): Promise<
+  | { supabase: Awaited<ReturnType<typeof createClient>>; user: NonNullable<Awaited<ReturnType<typeof getUser>>["user"]> }
+  | { error: string }
+> {
+  const { supabase, user } = await requireUser(next);
+  const restriction = await getAccountRestriction(supabase, user.id);
+  if (restriction?.banned) {
+    return {
+      error: `Your account has been banned${restriction.reason ? `: ${restriction.reason}` : "."}`,
+    };
+  }
+  if (restriction?.suspendedUntil) {
+    const until = new Date(restriction.suspendedUntil).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    return {
+      error: `Your account is suspended until ${until}${restriction.reason ? `: ${restriction.reason}` : "."}`,
+    };
+  }
+  return { supabase, user };
+}
+
 async function siteOrigin(): Promise<string> {
   if (env.siteUrl) return env.siteUrl;
   const h = await headers();
@@ -50,9 +80,18 @@ async function siteOrigin(): Promise<string> {
 // ---------------------------------------------------------------- auth
 
 export async function signInWithEmail(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const email = text(formData, "email", 320);
+  const email = text(formData, "email", 320).toLowerCase();
   const next = safeRedirectPath(String(formData.get("next") ?? ""));
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Enter a valid email address." };
+
+  const ip = getClientIp(await headers());
+  const [ipOk, emailOk] = await Promise.all([
+    checkRateLimit(`signin:ip:${ip}`, RATE_LIMITS.signInIp.limit, RATE_LIMITS.signInIp.windowSeconds),
+    checkRateLimit(`signin:email:${email}`, RATE_LIMITS.signInEmail.limit, RATE_LIMITS.signInEmail.windowSeconds),
+  ]);
+  if (!ipOk || !emailOk) {
+    return { error: "Too many sign-in emails were requested. Wait a few minutes, then try again." };
+  }
 
   const supabase = await createClient();
   const origin = await siteOrigin();
@@ -100,9 +139,18 @@ export async function signOut() {
 
 // ---------------------------------------------------------------- projects
 
-type ZipUpload = { file_path: string | null; file_name: string | null; file_size: number | null };
+type ZipUpload = {
+  file_path: string | null;
+  file_name: string | null;
+  file_size: number | null;
+  integrity?: {
+    file_sha256: string;
+    file_manifest: ZipManifest;
+    scan: ScanResult;
+  };
+};
 
-/** Validates a zip that the browser uploaded directly to storage. */
+/** Validates, inspects, hashes, checks duplicates, and optionally virus-scans an uploaded zip. */
 async function verifyZip(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -114,17 +162,91 @@ async function verifyZip(
   if (!m || m[1] !== userId) return { error: "Invalid file upload. Try attaching it again." };
   const file_size = await findUpload(supabase, "files", file_path);
   if (file_size === null) return { error: "The zip upload didn't finish. Try attaching it again." };
+
   let file_name =
     text(formData, "file_name", 200)
       .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_")
       .replace(/^\.+/, "") || "download.zip";
   if (!file_name.toLowerCase().endsWith(".zip")) file_name += ".zip";
-  return { file_path, file_name, file_size };
+
+  const { data: blob, error: dlError } = await supabase.storage.from("files").download(file_path);
+  if (dlError || !blob) {
+    await supabase.storage.from("files").remove([file_path]);
+    return { error: "Couldn't read the uploaded zip. Try attaching it again." };
+  }
+
+  const buf = Buffer.from(await blob.arrayBuffer());
+  const inspection = inspectZipBuffer(buf);
+  if (!inspection.ok) {
+    await supabase.storage.from("files").remove([file_path]);
+    return { error: inspection.error };
+  }
+
+  const admin = createAdminClient();
+  const db = admin ?? supabase;
+  const { data: dupRow } = await db
+    .from("project_releases")
+    .select(
+      "id,project:projects!project_releases_project_id_fkey!inner(title,author_id,author:profiles!projects_author_id_fkey(username))",
+    )
+    .eq("file_sha256", inspection.sha256)
+    .neq("project.author_id", userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (dupRow) {
+    await supabase.storage.from("files").remove([file_path]);
+    const proj = dupRow.project as unknown as { title: string; author: { username: string } | null } | null;
+    const ownerName = proj?.author?.username ?? "another creator";
+    const projTitle = proj?.title ?? "another project";
+    return {
+      error: `This exact file is already on Forkyard, in "${projTitle}" by @${ownerName}. If it's your work, open that project and report it as yours. If you're building on it, credit them and upload your changed version.`,
+    };
+  }
+
+  const scan = await scanFileWithVirusTotal(inspection.sha256, buf, file_name);
+  if (scan.scan_status === "malicious") {
+    await supabase.storage.from("files").remove([file_path]);
+    return { error: "This file was flagged as malware by antivirus scanners and can't be uploaded." };
+  }
+
+  return {
+    file_path,
+    file_name,
+    file_size,
+    integrity: {
+      file_sha256: inspection.sha256,
+      file_manifest: inspection.manifest,
+      scan,
+    },
+  };
+}
+
+async function saveReleaseIntegrity(releaseId: string, integrity: NonNullable<ZipUpload["integrity"]>) {
+  const admin = createAdminClient();
+  if (!admin) return;
+  await admin
+    .from("project_releases")
+    .update({
+      file_sha256: integrity.file_sha256,
+      file_manifest: integrity.file_manifest,
+      ...integrity.scan,
+    })
+    .eq("id", releaseId);
 }
 
 const VERSION = /^[A-Za-z0-9][A-Za-z0-9._+\- ]{0,39}$/;
 
-const REPORT_KINDS = ["my_work", "malware", "rom_or_piracy", "illegal", "other"] as const;
+const REPORT_KINDS = [
+  "my_work",
+  "malware",
+  "rom_or_piracy",
+  "illegal",
+  "harassment",
+  "spam",
+  "impersonation",
+  "other",
+] as const;
 
 /** The database refuses a file that's already on Forkyard under someone else's account (see migration 0007). */
 function releaseErrorMessage(message: string): string {
@@ -218,7 +340,16 @@ async function readCover(
 }
 
 export async function createProject(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { supabase, user } = await requireUser("/new");
+  const active = await requireActiveUser("/new");
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+
+  const allowed = await checkRateLimit(
+    `create_project:${user.id}`,
+    RATE_LIMITS.createProject.limit,
+    RATE_LIMITS.createProject.windowSeconds,
+  );
+  if (!allowed) return { error: "You're posting too fast. Wait a bit before posting another project." };
 
   const fields = readProjectFields(formData);
   if ("error" in fields) return fields;
@@ -228,27 +359,42 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
   const zip = await verifyZip(supabase, user.id, formData);
   if ("error" in zip) return zip;
   const cover = await readCover(supabase, user.id, formData);
-  if (cover && "error" in cover) return cover;
+  if (cover && "error" in cover) {
+    if (zip.file_path) await supabase.storage.from("files").remove([zip.file_path]);
+    return cover;
+  }
 
   const { data, error } = await supabase
     .from("projects")
     .insert({ author_id: user.id, ...fields, ...(cover ?? {}) })
     .select("id")
     .single();
-  if (error) return { error: error.message };
+  if (error) {
+    if (zip.file_path) await supabase.storage.from("files").remove([zip.file_path]);
+    return { error: error.message };
+  }
 
   // A zip or a version number makes the first release.
   if (zip.file_path || versionRaw) {
-    const { error: releaseError } = await supabase.from("project_releases").insert({
-      project_id: data.id,
-      version: versionRaw || "1.0",
-      changelog: "Initial release",
-      works_on: fields.works_on,
-      ...zip,
-    });
+    const { integrity, ...zipRow } = zip;
+    const { data: rel, error: releaseError } = await supabase
+      .from("project_releases")
+      .insert({
+        project_id: data.id,
+        version: versionRaw || "1.0",
+        changelog: "Initial release",
+        works_on: fields.works_on,
+        ...zipRow,
+      })
+      .select("id")
+      .single();
     if (releaseError) {
+      if (zip.file_path) await supabase.storage.from("files").remove([zip.file_path]);
       await supabase.from("projects").delete().eq("id", data.id);
       return { error: releaseErrorMessage(releaseError.message) };
+    }
+    if (integrity && rel) {
+      await saveReleaseIntegrity(rel.id, integrity);
     }
   }
 
@@ -257,7 +403,9 @@ export async function createProject(_prev: ActionState, formData: FormData): Pro
 }
 
 export async function updateProject(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { supabase, user } = await requireUser(`/p/${projectId}/edit`);
+  const active = await requireActiveUser(`/p/${projectId}/edit`);
+  if ("error" in active) return active;
+  const { supabase, user } = active;
 
   const { data: existing } = await supabase
     .from("projects")
@@ -312,7 +460,16 @@ export async function deleteProject(projectId: string) {
 // ---------------------------------------------------------------- releases
 
 export async function createRelease(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { supabase, user } = await requireUser(`/p/${projectId}/release`);
+  const active = await requireActiveUser(`/p/${projectId}/release`);
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+
+  const allowed = await checkRateLimit(
+    `create_release:${user.id}`,
+    RATE_LIMITS.createRelease.limit,
+    RATE_LIMITS.createRelease.windowSeconds,
+  );
+  if (!allowed) return { error: "You're publishing releases too quickly. Wait a bit and try again." };
 
   const { data: project } = await supabase
     .from("projects")
@@ -329,17 +486,25 @@ export async function createRelease(projectId: string, _prev: ActionState, formD
   const zip = await verifyZip(supabase, user.id, formData);
   if ("error" in zip) return zip;
 
-  const { error } = await supabase.from("project_releases").insert({
-    project_id: projectId,
-    version,
-    changelog: text(formData, "changelog", 10000) || null,
-    works_on: text(formData, "works_on", 200) || null,
-    ...zip,
-  });
+  const { integrity, ...zipRow } = zip;
+  const { data: rel, error } = await supabase
+    .from("project_releases")
+    .insert({
+      project_id: projectId,
+      version,
+      changelog: text(formData, "changelog", 10000) || null,
+      works_on: text(formData, "works_on", 200) || null,
+      ...zipRow,
+    })
+    .select("id")
+    .single();
   if (error) {
     if (zip.file_path) await supabase.storage.from("files").remove([zip.file_path]);
     if (error.code === "23505") return { error: `There's already a release called v${version}.` };
     return { error: releaseErrorMessage(error.message) };
+  }
+  if (integrity && rel) {
+    await saveReleaseIntegrity(rel.id, integrity);
   }
 
   revalidatePath("/", "layout");
@@ -371,7 +536,13 @@ export async function deleteRelease(projectId: string, releaseId: string) {
 
 /** 1 = like, -1 = dislike, 0 = clear. */
 export async function setReaction(projectId: string, value: 1 | -1 | 0) {
-  const { supabase, user } = await requireUser(`/p/${projectId}`);
+  const active = await requireActiveUser(`/p/${projectId}`);
+  if ("error" in active) return;
+  const { supabase, user } = active;
+
+  const allowed = await checkRateLimit(`vote:${user.id}`, RATE_LIMITS.vote.limit, RATE_LIMITS.vote.windowSeconds);
+  if (!allowed) return;
+
   if (value === 0) {
     await supabase.from("votes").delete().eq("user_id", user.id).eq("project_id", projectId);
   } else if (value === 1 || value === -1) {
@@ -398,7 +569,17 @@ export async function toggleFollowTag(rawTag: string, currentlyFollowing: boolea
 }
 
 export async function addComment(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { supabase, user } = await requireUser(`/p/${projectId}`);
+  const active = await requireActiveUser(`/p/${projectId}`);
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+
+  const allowed = await checkRateLimit(
+    `comment:${user.id}`,
+    RATE_LIMITS.comment.limit,
+    RATE_LIMITS.comment.windowSeconds,
+  );
+  if (!allowed) return { error: "You're commenting too quickly. Wait a few minutes before posting again." };
+
   const body = text(formData, "body", 5000);
   if (!body) return { error: "Comment can't be empty." };
   const { error } = await supabase.from("comments").insert({ project_id: projectId, author_id: user.id, body });
@@ -408,8 +589,9 @@ export async function addComment(projectId: string, _prev: ActionState, formData
 }
 
 export async function deleteComment(projectId: string, commentId: string) {
-  const { supabase, user } = await requireUser(`/p/${projectId}`);
-  await supabase.from("comments").delete().eq("id", commentId).eq("author_id", user.id);
+  const { supabase } = await requireUser(`/p/${projectId}`);
+  // RLS permits comment authors, the project's author, and moderators to delete.
+  await supabase.from("comments").delete().eq("id", commentId).eq("project_id", projectId);
   revalidatePath(`/p/${projectId}`);
 }
 
@@ -430,12 +612,22 @@ export async function submitWorksReport(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { supabase, user } = await requireUser(`/p/${projectId}`);
+  const active = await requireActiveUser(`/p/${projectId}`);
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+
+  const allowed = await checkRateLimit(
+    `works:${user.id}`,
+    RATE_LIMITS.worksReport.limit,
+    RATE_LIMITS.worksReport.windowSeconds,
+  );
+  if (!allowed) return { error: "Too many reports submitted. Wait a bit and try again." };
+
   const worked = formData.get("worked");
   if (worked !== "yes" && worked !== "no") return { error: "Pick whether it worked for you." };
   const releaseRaw = text(formData, "release_id", 36);
   const release_id = releaseRaw || null;
-  if (release_id && !new RegExp(`^${UUID}$`).test(release_id)) return { error: "Pick a version." };
+  if (release_id && !UUID_RE.test(release_id)) return { error: "Pick a version." };
 
   const fields = { worked: worked === "yes", setup: text(formData, "setup", 200) || null };
 
@@ -452,27 +644,128 @@ export async function submitWorksReport(
   return { ok: true };
 }
 
-export async function reportProject(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+export async function deleteWorksReport(projectId: string, releaseId: string | null) {
   const { supabase, user } = await requireUser(`/p/${projectId}`);
+  let query = supabase.from("works_reports").delete().eq("user_id", user.id).eq("project_id", projectId);
+  query = releaseId ? query.eq("release_id", releaseId) : query.is("release_id", null);
+  await query;
+  revalidatePath(`/p/${projectId}`);
+}
+
+function readReportInput(formData: FormData): { kind: (typeof REPORT_KINDS)[number]; reason: string } | { error: string } {
   const reason = text(formData, "reason", 1000);
   const kindRaw = String(formData.get("kind") ?? "other");
-  const kind = REPORT_KINDS.includes(kindRaw as (typeof REPORT_KINDS)[number]) ? kindRaw : "other";
+  const kind = REPORT_KINDS.includes(kindRaw as (typeof REPORT_KINDS)[number])
+    ? (kindRaw as (typeof REPORT_KINDS)[number])
+    : "other";
   if (!reason) return { error: "Tell us what's wrong." };
   if (kind === "my_work" && reason.length < 15) {
     return { error: "Link to where you originally posted it, so we can check it's yours." };
   }
-  const { error } = await supabase.from("reports").insert({ project_id: projectId, reporter_id: user.id, reason, kind });
-  if (error) return { error: error.message };
+  return { kind, reason };
+}
+
+export async function reportProject(projectId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  const active = await requireActiveUser(`/p/${projectId}`);
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+
+  const allowed = await checkRateLimit(`report:${user.id}`, RATE_LIMITS.report.limit, RATE_LIMITS.report.windowSeconds);
+  if (!allowed) return { error: "You've sent a lot of reports recently. Wait a bit before sending another." };
+
+  const parsed = readReportInput(formData);
+  if ("error" in parsed) return parsed;
+
+  const { error } = await supabase.from("reports").insert({
+    target_type: "project",
+    project_id: projectId,
+    reporter_id: user.id,
+    kind: parsed.kind,
+    reason: parsed.reason,
+  });
+  if (error) {
+    if (error.code === "23505") return { error: "You've already reported this — it's in our review queue." };
+    return { error: error.message };
+  }
+  return { ok: true };
+}
+
+export async function reportComment(
+  projectId: string,
+  commentId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const active = await requireActiveUser(`/p/${projectId}`);
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+  if (!UUID_RE.test(commentId)) return { error: "Invalid comment." };
+
+  const allowed = await checkRateLimit(`report:${user.id}`, RATE_LIMITS.report.limit, RATE_LIMITS.report.windowSeconds);
+  if (!allowed) return { error: "You've sent a lot of reports recently. Wait a bit before sending another." };
+
+  const parsed = readReportInput(formData);
+  if ("error" in parsed) return parsed;
+
+  const { error } = await supabase.from("reports").insert({
+    target_type: "comment",
+    project_id: projectId,
+    comment_id: commentId,
+    reporter_id: user.id,
+    kind: parsed.kind,
+    reason: parsed.reason,
+  });
+  if (error) {
+    if (error.code === "23505") return { error: "You've already reported this comment — it's in our review queue." };
+    return { error: error.message };
+  }
+  return { ok: true };
+}
+
+export async function reportProfile(
+  profileId: string,
+  username: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const active = await requireActiveUser(`/u/${username}`);
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+  if (!UUID_RE.test(profileId)) return { error: "Invalid profile." };
+
+  const allowed = await checkRateLimit(`report:${user.id}`, RATE_LIMITS.report.limit, RATE_LIMITS.report.windowSeconds);
+  if (!allowed) return { error: "You've sent a lot of reports recently. Wait a bit before sending another." };
+
+  const parsed = readReportInput(formData);
+  if ("error" in parsed) return parsed;
+
+  const { error } = await supabase.from("reports").insert({
+    target_type: "profile",
+    profile_id: profileId,
+    reporter_id: user.id,
+    kind: parsed.kind,
+    reason: parsed.reason,
+  });
+  if (error) {
+    if (error.code === "23505") return { error: "You've already reported this account — it's in our review queue." };
+    return { error: error.message };
+  }
   return { ok: true };
 }
 
 // ---------------------------------------------------------------- profile
 
 export async function updateProfile(_prev: ActionState, formData: FormData): Promise<ActionState> {
-  const { supabase, user } = await requireUser("/settings");
+  const active = await requireActiveUser("/settings");
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+
   const username = text(formData, "username", 24).toLowerCase();
   if (!/^[a-z0-9_]{3,24}$/.test(username)) {
     return { error: "Username must be 3–24 characters: lowercase letters, numbers and underscores." };
+  }
+  if (isReservedUsername(username)) {
+    return { error: "That username isn't available." };
   }
   const { error } = await supabase
     .from("profiles")
@@ -529,7 +822,10 @@ export async function deleteAccount(_prev: ActionState, formData: FormData): Pro
 
 /** Sets (or, with null, removes) the profile photo. The browser has already uploaded the file. */
 export async function updateAvatar(path: string | null): Promise<ActionState> {
-  const { supabase, user } = await requireUser("/settings");
+  const active = await requireActiveUser("/settings");
+  if ("error" in active) return active;
+  const { supabase, user } = active;
+
   const { data: current } = await supabase.from("profiles").select("avatar_path").eq("id", user.id).single();
 
   let avatar_url: string | null = null;
